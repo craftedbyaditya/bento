@@ -1,28 +1,28 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Send } from 'lucide-react';
-import { database, ref, push } from '../config/firebaseConfig.ts';  
+import { database, ref, push } from '../config/firebaseConfig.ts';
+import { WaitlistPopup } from './WaitlistPopup.tsx';
 
 export const Newsletter: React.FC = () => {
+  const [isOpen, setIsOpen] = useState(false);
 
-  const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
+  const openPopup = () => setIsOpen(true);
+  const closePopup = () => setIsOpen(false);
 
-  const handleSubmit = async (e: { preventDefault: () => void; }) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!email) {
-      setMessage('Please enter a valid email address.');
-      return;
-    }
-  
-    try {
-      const emailRef = ref(database, 'emails');
-      await push(emailRef, { email });
-      setMessage('Thank you for subscribing!');
-      setEmail('');
-    } catch (error) {
-      console.error('Error storing email:', error);
-      setMessage('Something went wrong. Please try again.');
+    const emailInput = e.currentTarget.email.value;
+
+    if (emailInput) {
+      try {
+        e.currentTarget.reset(); 
+        await push(ref(database, 'waitlist'), { email: emailInput });
+        openPopup(); 
+        e.currentTarget.reset();
+      } catch (error) {
+        console.error('Error storing email:', error);
+      }
     }
   };
 
@@ -35,19 +35,17 @@ export const Newsletter: React.FC = () => {
         transition={{ duration: 0.8 }}
         className="container mx-auto max-w-4xl text-center"
       >
-        <h2 className="text-4xl font-bold mb-6">
-          Join the Future of Translation
-        </h2>
+        <h2 className="text-4xl font-bold mb-6">Join the Future of Translation</h2>
         <p className="text-xl text-gray-400 mb-12">
           Be the first to experience our revolutionary AI translation platform
         </p>
-        <form onSubmit={handleSubmit} className="flex gap-4 max-w-lg mx-auto">
+
+        <form className="flex gap-4 max-w-lg mx-auto" onSubmit={handleSubmit}>
           <input
             type="email"
+            name="email"
             placeholder="Enter your email"
             className="flex-1 px-6 py-4 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
           />
           <button
             type="submit"
@@ -57,8 +55,8 @@ export const Newsletter: React.FC = () => {
             <Send className="w-4 h-4" />
           </button>
         </form>
-        {message && <p className="mt-4 text-sm text-white-400">{message}</p>}
       </motion.div>
+      <WaitlistPopup isOpen={isOpen} onClose={closePopup} />
     </section>
   );
 };
