@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Send, Loader } from 'lucide-react';
-import { database, ref, push } from '../config/firebaseConfig.ts';
-import { WaitlistPopup } from './WaitlistPopup.tsx';
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import { Send, Loader } from "lucide-react";
+import { database, ref, push } from "../config/firebaseConfig.ts";
+import { WaitlistPopup } from "./WaitlistPopup.tsx";
 
 export const Newsletter: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false); 
+  const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const openPopup = () => setIsOpen(true);
@@ -18,15 +18,20 @@ export const Newsletter: React.FC = () => {
     const emailInput = form.email.value;
 
     if (emailInput) {
-      setLoading(true); 
+      setLoading(true);
       try {
         form.reset();
-        await push(ref(database, 'waitlist'), { email: emailInput }); 
-        openPopup(); 
+        await push(ref(database, "waitlist"), { email: emailInput });
+        if (typeof window.gtag === "function") {
+          window.gtag("event", "join_waitlist", {
+            email: emailInput,
+          });
+        }
+        openPopup();
       } catch (error) {
-        console.error('Error storing email:', error);
+        console.error("Error storing email:", error);
       } finally {
-        setLoading(false); 
+        setLoading(false);
       }
     }
   };
@@ -40,7 +45,9 @@ export const Newsletter: React.FC = () => {
         transition={{ duration: 0.8 }}
         className="container mx-auto max-w-4xl text-center"
       >
-        <h2 className="text-4xl font-bold mb-6">Join the Future of Translation</h2>
+        <h2 className="text-4xl font-bold mb-6">
+          Join the Future of Translation
+        </h2>
         <p className="text-xl text-gray-400 mb-12">
           Be the first to experience our revolutionary AI translation platform
         </p>
