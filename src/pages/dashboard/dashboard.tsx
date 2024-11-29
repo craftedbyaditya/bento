@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { BiBell, BiCog, BiSearch, BiTrash, BiChevronDown, BiDownload, BiDotsHorizontalRounded, BiFilterAlt, BiEditAlt } from 'react-icons/bi';
+import React, { useState } from 'react';
+import { BiBell, BiCog, BiSearch, BiTrash, BiChevronDown, BiDownload, BiDotsHorizontalRounded, BiFilterAlt, BiEditAlt, BiPlus } from 'react-icons/bi';
+import { useNavigate } from 'react-router-dom';
 
 interface Project {
   id: string;
@@ -24,6 +25,7 @@ interface Filters {
 }
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
@@ -55,28 +57,28 @@ const Dashboard: React.FC = () => {
   ];
 
   const tableData: TableRow[] = [
-    { 
-      id: '1', 
-      key: 'API_KEY', 
-      updatedBy: 'John Doe', 
+    {
+      id: '1',
+      key: 'API_KEY',
+      updatedBy: 'John Doe',
       modifiedAt: '2023-12-01',
       role: 'Admin',
       status: 'active',
       tag: 'Production'
     },
-    { 
-      id: '2', 
-      key: 'DB_URL', 
-      updatedBy: 'Jane Smith', 
+    {
+      id: '2',
+      key: 'DB_URL',
+      updatedBy: 'Jane Smith',
       modifiedAt: '2023-12-02',
       role: 'Developer',
       status: 'inactive',
       tag: 'Development'
     },
-    { 
-      id: '3', 
-      key: 'SECRET_KEY', 
-      updatedBy: 'Mike Johnson', 
+    {
+      id: '3',
+      key: 'SECRET_KEY',
+      updatedBy: 'Mike Johnson',
       modifiedAt: '2023-12-03',
       role: 'Viewer',
       status: 'pending',
@@ -85,8 +87,8 @@ const Dashboard: React.FC = () => {
   ];
 
   const handleRowSelect = (rowId: string) => {
-    setSelectedRows(prev => 
-      prev.includes(rowId) 
+    setSelectedRows(prev =>
+      prev.includes(rowId)
         ? prev.filter(id => id !== rowId)
         : [...prev, rowId]
     );
@@ -104,7 +106,7 @@ const Dashboard: React.FC = () => {
   const handleApplyFilters = async () => {
     setIsLoading(true);
     setAppliedFilters(tempFilters);
-    
+
     try {
       // This would be replaced with actual API call
       // const response = await fetch('/api/data', {
@@ -120,11 +122,11 @@ const Dashboard: React.FC = () => {
       // });
       // const data = await response.json();
       // setTableData(data);
-      
+
       // Simulating API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       console.log('Filters applied:', tempFilters);
-      
+
     } catch (error) {
       console.error('Error fetching filtered data:', error);
     } finally {
@@ -143,8 +145,8 @@ const Dashboard: React.FC = () => {
   };
 
   const getUniqueValues = (key: keyof TableRow) => {
-    const values = new Set(tableData.map(row => 
-      Array.isArray(row[key]) 
+    const values = new Set(tableData.map(row =>
+      Array.isArray(row[key])
         ? (row[key] as string[]).map(v => v)
         : [row[key]]
     ).flat());
@@ -265,7 +267,7 @@ const Dashboard: React.FC = () => {
                     </span>
                   )}
                 </button>
-                
+
                 {isFilterDropdownOpen && (
                   <div className="origin-top-right absolute right-0 mt-2 w-80 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 focus:outline-none z-10">
                     <div className="p-4">
@@ -360,9 +362,8 @@ const Dashboard: React.FC = () => {
                         <button
                           onClick={handleApplyFilters}
                           disabled={isLoading}
-                          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                            isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
+                          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
                         >
                           {isLoading ? (
                             <>
@@ -385,9 +386,17 @@ const Dashboard: React.FC = () => {
             {/* Action Buttons */}
             <div className="flex items-center space-x-4">
               <button
-                className="flex items-center px-3 py-1 text-sm text-gray-600 hover:text-gray-700"
+                onClick={() => navigate('/')}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
-                <BiDownload className="h-5 w-5 mr-1" />
+                <BiPlus className="mr-2 h-5 w-5" />
+                Add New Key
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <BiDownload className="mr-2 h-5 w-5" />
                 Download
               </button>
               {selectedRows.length > 0 && (
@@ -439,13 +448,12 @@ const Dashboard: React.FC = () => {
             </thead>
             <tbody className="bg-white">
               {filteredData.map((row) => (
-                <tr 
+                <tr
                   key={row.id}
-                  className={`${
-                    selectedRows.includes(row.id) 
-                      ? 'bg-blue-50' 
+                  className={`${selectedRows.includes(row.id)
+                      ? 'bg-blue-50'
                       : 'hover:bg-gray-50'
-                  } transition-colors duration-150 ease-in-out`}
+                    } transition-colors duration-150 ease-in-out`}
                 >
                   <td className="px-6 py-2 whitespace-nowrap">
                     <input
@@ -509,7 +517,7 @@ const Dashboard: React.FC = () => {
                   </td>
                   <td className="px-6 py-2 whitespace-nowrap text-right">
                     <div className="relative">
-                      <button 
+                      <button
                         className="text-gray-600 hover:text-gray-900"
                         onClick={() => setActiveActionMenu(activeActionMenu === row.id ? null : row.id)}
                       >
@@ -517,7 +525,7 @@ const Dashboard: React.FC = () => {
                       </button>
 
                       {activeActionMenu === row.id && (
-                        <div 
+                        <div
                           className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
                           onMouseLeave={() => setActiveActionMenu(null)}
                         >
@@ -549,12 +557,11 @@ const Dashboard: React.FC = () => {
                                     className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 capitalize"
                                     onClick={() => handleStatusChange(row.id, status)}
                                   >
-                                    <span 
-                                      className={`mr-2 h-2 w-2 rounded-full ${
-                                        status === 'pending' ? 'bg-yellow-400' :
-                                        status === 'inactive' ? 'bg-gray-400' :
-                                        status === 'archive' ? 'bg-red-400' : ''
-                                      }`}
+                                    <span
+                                      className={`mr-2 h-2 w-2 rounded-full ${status === 'pending' ? 'bg-yellow-400' :
+                                          status === 'inactive' ? 'bg-gray-400' :
+                                            status === 'archive' ? 'bg-red-400' : ''
+                                        }`}
                                     />
                                     {status}
                                   </button>

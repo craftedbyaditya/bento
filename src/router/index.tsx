@@ -1,27 +1,24 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter } from 'react-router-dom';
+import AddKey from '../pages/addKey/addKey';
+import Dashboard from '../pages/dashboard/dashboard';
 import Login from '../pages/authentication/login';
 import Register from '../pages/authentication/register';
-import Dashboard from '../pages/dashboard/dashboard';
 
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <Navigate to="/dashboard" replace />
-  },
-  {
-    path: '/login',
-    element: <Login />
-  },
-  {
-    path: '/register',
-    element: <Register />
+    element: <AddKey />,
   },
   {
     path: '/dashboard',
-    element: <Dashboard />
+    element: <Dashboard />,
   },
   {
-    path: '*',
-    element: <Navigate to="/login" replace />
-  }
+    path: '/login',
+    element: <Login />,
+  },
+  {
+    path: '/register',
+    element: <Register />,
+  },
 ]);
