@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BiBell, BiCog, BiSearch, BiTrash, BiChevronDown, BiDownload, BiDotsHorizontalRounded, BiFilterAlt, BiEditAlt, BiPlus } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
+import AppBar from '../../components/AppBar';
 
 interface Project {
   id: string;
@@ -189,51 +190,28 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-6 py-3 flex justify-between items-center">
-          {/* Project Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
-              className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+      <AppBar 
+        projectName={selectedProject?.name || 'Select Project'} 
+        isProjectSelectable={true}
+        onProjectSelect={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
+      />
+      
+      {isProjectDropdownOpen && (
+        <div className="absolute z-10 mt-1 ml-6 w-56 bg-white border border-gray-200 rounded-md shadow-lg">
+          {projects.map(project => (
+            <div
+              key={project.id}
+              className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+              onClick={() => {
+                setSelectedProject(project);
+                setIsProjectDropdownOpen(false);
+              }}
             >
-              <span>{selectedProject?.name || 'Select Project'}</span>
-              <BiChevronDown className="h-5 w-5" />
-            </button>
-
-            {isProjectDropdownOpen && (
-              <div className="absolute z-10 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg">
-                {projects.map(project => (
-                  <div
-                    key={project.id}
-                    className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
-                    onClick={() => {
-                      setSelectedProject(project);
-                      setIsProjectDropdownOpen(false);
-                    }}
-                  >
-                    {project.name}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Right Icons */}
-          <div className="flex items-center space-x-4">
-            <button className="p-2 text-gray-400 hover:text-gray-500">
-              <BiBell className="h-6 w-6" />
-            </button>
-            <button className="p-2 text-gray-400 hover:text-gray-500">
-              <BiCog className="h-6 w-6" />
-            </button>
-            <div className="h-6 w-6 rounded-full bg-gray-200">
-              {/* Profile picture placeholder */}
+              {project.name}
             </div>
-          </div>
+          ))}
         </div>
-      </div>
+      )}
 
       {/* Main Content */}
       <div className="px-6 py-6">

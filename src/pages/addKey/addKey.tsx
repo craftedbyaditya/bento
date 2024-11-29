@@ -3,6 +3,7 @@ import { BiPlus, BiSearch, BiX, BiChevronLeft, BiChevronDown } from 'react-icons
 import { RiMagicFill } from 'react-icons/ri';
 import { useNavigate } from 'react-router-dom';
 import TextField from '../../components/TextField';
+import AppBar from '../../components/AppBar';
 
 interface Language {
   code: string;
@@ -147,6 +148,10 @@ const AddKey: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <AppBar 
+        projectName="Project Alpha" 
+        isProjectSelectable={false}
+      />
       <div className="w-screen px-4 py-8">
       <div className="bg-white rounded-lg shadow w-full">
           <div className="px-8 py-5 border-b border-gray-200">
