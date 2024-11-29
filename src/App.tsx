@@ -3,6 +3,7 @@ import { HeroSection } from './components/HeroSection';
 import { Newsletter } from './components/Newsletter';
 import { Particles } from './components/Particles';
 
+
 function App() {
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
