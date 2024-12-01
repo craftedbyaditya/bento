@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useReducer, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppBar from '../../components/AppBar';
 import TextField from '../../components/TextField';
@@ -7,18 +7,28 @@ import { BiChevronLeft, BiSearch, BiTrash, BiRefresh, BiChevronDown, BiFilterAlt
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
+const enum Role {
+  Admin = 'Admin',
+  Member = 'Member'
+}
+
+const enum Status {
+  Active = 'active',
+  Pending = 'pending'
+}
+
 interface Member {
   id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'Member';
-  status: 'active' | 'pending';
+  role: Role;
+  status: Status;
   joinedAt: string;
 }
 
 interface Filters {
-  status: string[];
-  role: string[];
+  status: Status[];
+  role: Role[];
 }
 
 interface SnackbarState {
@@ -27,67 +37,150 @@ interface SnackbarState {
   type: 'success' | 'error';
 }
 
-const ROLES = ['Admin', 'Member'] as const;
+interface State {
+  filters: Filters;
+  isFilterDropdownOpen: boolean;
+  activeRoleDropdown: string | null;
+  showInviteModal: boolean;
+  showRemoveModal: boolean;
+  selectedMember: Member | null;
+  isLoading: boolean;
+  snackbar: SnackbarState;
+}
+
+type Action =
+  | { type: 'SET_FILTER'; filterType: keyof Filters; value: Status | Role }
+  | { type: 'RESET_FILTERS' }
+  | { type: 'SET_FILTER_DROPDOWN'; isOpen: boolean }
+  | { type: 'SET_ACTIVE_ROLE_DROPDOWN'; role: string | null }
+  | { type: 'SET_INVITE_MODAL'; show: boolean }
+  | { type: 'SET_REMOVE_MODAL'; show: boolean }
+  | { type: 'SET_SELECTED_MEMBER'; member: Member | null }
+  | { type: 'SET_LOADING'; isLoading: boolean }
+  | { type: 'SET_SNACKBAR'; snackbar: SnackbarState };
+
+const initialState: State = {
+  filters: {
+    status: [],
+    role: []
+  },
+  isFilterDropdownOpen: false,
+  activeRoleDropdown: null,
+  showInviteModal: false,
+  showRemoveModal: false,
+  selectedMember: null,
+  isLoading: false,
+  snackbar: {
+    isOpen: false,
+    message: '',
+    type: 'success'
+  }
+};
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'SET_FILTER':
+      const currentValues = state.filters[action.filterType];
+      const newValues = currentValues.includes(action.value as any)
+        ? currentValues.filter(v => v !== action.value)
+        : [...currentValues, action.value as any];
+      
+      return {
+        ...state,
+        filters: {
+          ...state.filters,
+          [action.filterType]: newValues
+        }
+      };
+    
+    case 'RESET_FILTERS':
+      return {
+        ...state,
+        filters: initialState.filters
+      };
+    
+    case 'SET_FILTER_DROPDOWN':
+      return {
+        ...state,
+        isFilterDropdownOpen: action.isOpen
+      };
+    
+    case 'SET_ACTIVE_ROLE_DROPDOWN':
+      return {
+        ...state,
+        activeRoleDropdown: action.role
+      };
+    
+    case 'SET_INVITE_MODAL':
+      return {
+        ...state,
+        showInviteModal: action.show
+      };
+    
+    case 'SET_REMOVE_MODAL':
+      return {
+        ...state,
+        showRemoveModal: action.show
+      };
+    
+    case 'SET_SELECTED_MEMBER':
+      return {
+        ...state,
+        selectedMember: action.member
+      };
+    
+    case 'SET_LOADING':
+      return {
+        ...state,
+        isLoading: action.isLoading
+      };
+    
+    case 'SET_SNACKBAR':
+      return {
+        ...state,
+        snackbar: action.snackbar
+      };
+    
+    default:
+      return state;
+  }
+}
 
 const Members: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
-  const [activeRoleDropdown, setActiveRoleDropdown] = useState<string | null>(null);
-  const [tempFilters, setTempFilters] = useState<Filters>({
-    status: [],
-    role: []
-  });
-  const [appliedFilters, setAppliedFilters] = useState<Filters>({
-    status: [],
-    role: []
-  });
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [showRemoveModal, setShowRemoveModal] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [snackbar, setSnackbar] = useState<SnackbarState>({
-    isOpen: false,
-    message: '',
-    type: 'success'
-  });
+  const [state, dispatch] = useReducer(reducer, initialState);
 
   const [members] = useState<Member[]>([
-    { id: '1', name: 'Ray Clarke', email: 'ray.c@acme.com', role: 'Admin', status: 'active', joinedAt: '2023-01-15' },
-    { id: '2', name: 'Jessica Taylor', email: 'jessica.t@acme.com', role: 'Admin', status: 'active', joinedAt: '2023-02-20' },
-    { id: '3', name: 'Nathan Foster', email: 'nathan.f@acme.com', role: 'Member', status: 'pending', joinedAt: '2023-03-10' },
+    { id: '1', name: 'Ray Clarke', email: 'ray.c@acme.com', role: Role.Admin, status: Status.Active, joinedAt: '2023-01-15' },
+    { id: '2', name: 'Jessica Taylor', email: 'jessica.t@acme.com', role: Role.Admin, status: Status.Active, joinedAt: '2023-02-20' },
+    { id: '3', name: 'Nathan Foster', email: 'nathan.f@acme.com', role: Role.Member, status: Status.Pending, joinedAt: '2023-03-10' },
   ]);
 
-  const handleFilterChange = (filterType: keyof Filters, value: string) => {
-    setTempFilters(prev => ({
-      ...prev,
-      [filterType]: prev[filterType].includes(value)
-        ? prev[filterType].filter(v => v !== value)
-        : [...prev[filterType], value]
-    }));
-  };
-
-  const handleApplyFilters = async () => {
-    setIsLoading(true);
-    setAppliedFilters(tempFilters);
+  const handleFilterChange = async (filterType: keyof Filters, value: Status | Role): Promise<void> => {
+    dispatch({ type: 'SET_FILTER', filterType, value });
     
     try {
+      dispatch({ type: 'SET_LOADING', isLoading: true });
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log('Filters applied:', tempFilters);
     } catch (error) {
-      console.error('Error applying filters:', error);
+      dispatch({
+        type: 'SET_SNACKBAR',
+        snackbar: {
+          isOpen: true,
+          message: 'Error applying filters. Please try again.',
+          type: 'error'
+        }
+      });
     } finally {
-      setIsLoading(false);
-      setIsFilterDropdownOpen(false);
+      dispatch({ type: 'SET_LOADING', isLoading: false });
+      dispatch({ type: 'SET_FILTER_DROPDOWN', isOpen: false });
     }
   };
 
-  const handleResetFilters = () => {
-    setTempFilters({
-      status: [],
-      role: []
-    });
+  const handleResetFilters = (): void => {
+    dispatch({ type: 'RESET_FILTERS' });
   };
 
   const filteredMembers = members.filter(member => {
@@ -96,26 +189,26 @@ const Members: React.FC = () => {
       member.email.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesFilters = (
-      (tempFilters.status.length === 0 || tempFilters.status.includes(member.status)) &&
-      (tempFilters.role.length === 0 || tempFilters.role.includes(member.role))
+      (state.filters.status.length === 0 || state.filters.status.includes(member.status)) &&
+      (state.filters.role.length === 0 || state.filters.role.includes(member.role))
     );
 
     return matchesSearch && matchesFilters;
   });
 
-  const handleInvite = (email: string, role: 'Admin' | 'Member') => {
+  const handleInvite = (email: string, role: Role) => {
     // TODO: Implement invite functionality
-    setShowInviteModal(false);
+    dispatch({ type: 'SET_INVITE_MODAL', show: false });
   };
 
-  const handleChangeRole = (memberId: string, newRole: 'Admin' | 'Member') => {
+  const handleChangeRole = (memberId: string, newRole: Role) => {
     // TODO: Implement role change functionality
-    // setShowChangeRoleModal(false);
+    // dispatch({ type: 'SET_CHANGE_ROLE_MODAL', show: false });
   };
 
   const handleRemoveMember = (memberId: string) => {
     // TODO: Implement remove functionality
-    setShowRemoveModal(false);
+    dispatch({ type: 'SET_REMOVE_MODAL', show: false });
   };
 
   const handleResendInvite = (memberId: string) => {
@@ -139,10 +232,13 @@ const Members: React.FC = () => {
   };
 
   const showSnackbar = (message: string, type: 'success' | 'error') => {
-    setSnackbar({
-      isOpen: true,
-      message,
-      type
+    dispatch({
+      type: 'SET_SNACKBAR',
+      snackbar: {
+        isOpen: true,
+        message,
+        type
+      }
     });
   };
 
@@ -155,7 +251,7 @@ const Members: React.FC = () => {
 
   const InviteModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [email, setEmail] = useState('');
-    const [role, setRole] = useState<'Admin' | 'Member'>('Member');
+    const [role, setRole] = useState<Role>(Role.Member);
     const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -217,7 +313,7 @@ const Members: React.FC = () => {
 
               {isRoleDropdownOpen && (
                 <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md">
-                  {ROLES.map((r) => (
+                  {[Role.Admin, Role.Member].map((r) => (
                     <div
                       key={r}
                       className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
@@ -374,7 +470,7 @@ const Members: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-4">
-          {member.status === 'pending' && (
+          {member.status === Status.Pending && (
             <button
               onClick={handleResendInvite}
               disabled={isResending}
@@ -385,7 +481,7 @@ const Members: React.FC = () => {
             </button>
           )}
 
-          {member.status === 'pending' ? (
+          {member.status === Status.Pending ? (
             <div className="text-sm text-gray-500">
               Invitation sent {format(new Date(member.joinedAt), 'MMM d, yyyy')}
             </div>
@@ -397,22 +493,22 @@ const Members: React.FC = () => {
 
           <div className="relative">
             <button
-              onClick={() => setActiveRoleDropdown(activeRoleDropdown === member.id ? null : member.id)}
+              onClick={() => dispatch({ type: 'SET_ACTIVE_ROLE_DROPDOWN', role: state.activeRoleDropdown === member.id ? null : member.id })}
               className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               {member.role}
               <BiChevronDown className="ml-2 h-5 w-5 text-gray-400" />
             </button>
 
-            {activeRoleDropdown === member.id && (
+            {state.activeRoleDropdown === member.id && (
               <div className="absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg z-10">
-                {ROLES.map((role) => (
+                {[Role.Admin, Role.Member].map((role) => (
                   <div
                     key={role}
                     className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
                     onClick={() => {
                       // Handle role change
-                      setActiveRoleDropdown(null);
+                      dispatch({ type: 'SET_ACTIVE_ROLE_DROPDOWN', role: null });
                     }}
                   >
                     {role}
@@ -425,8 +521,8 @@ const Members: React.FC = () => {
 
           <button
             onClick={() => {
-              setSelectedMember(member);
-              setShowRemoveModal(true);
+              dispatch({ type: 'SET_SELECTED_MEMBER', member });
+              dispatch({ type: 'SET_REMOVE_MODAL', show: true });
             }}
             className="text-red-500 hover:text-red-600 p-1 rounded-full hover:bg-red-50"
             title="Remove member"
@@ -475,19 +571,19 @@ const Members: React.FC = () => {
               </div>
               <div className="relative ml-2">
                 <button
-                  onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                  onClick={() => dispatch({ type: 'SET_FILTER_DROPDOWN', isOpen: !state.isFilterDropdownOpen })}
                   className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   <BiFilterAlt className="h-5 w-5 text-gray-400 mr-2" />
                   Filters
-                  {Object.values(tempFilters).some(arr => arr.length > 0) && (
+                  {Object.values(state.filters).some(arr => arr.length > 0) && (
                     <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                      {Object.values(tempFilters).reduce((acc, arr) => acc + arr.length, 0)}
+                      {Object.values(state.filters).reduce((acc, arr) => acc + arr.length, 0)}
                     </span>
                   )}
                 </button>
 
-                {isFilterDropdownOpen && (
+                {state.isFilterDropdownOpen && (
                   <div className="origin-top-right absolute right-0 mt-2 w-80 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 focus:outline-none z-10">
                     <div className="p-4">
                       <div className="flex items-center justify-between mb-4">
@@ -503,12 +599,12 @@ const Members: React.FC = () => {
                         <div>
                           <h4 className="text-sm font-medium text-gray-700 mb-2">Status</h4>
                           <div className="space-y-2">
-                            {['active', 'pending'].map((status) => (
+                            {[Status.Active, Status.Pending].map((status) => (
                               <label key={status} className="inline-flex items-center mr-4">
                                 <input
                                   type="checkbox"
                                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                  checked={tempFilters.status.includes(status)}
+                                  checked={state.filters.status.includes(status)}
                                   onChange={() => handleFilterChange('status', status)}
                                 />
                                 <span className="ml-2 text-sm text-gray-700 capitalize">{status}</span>
@@ -520,12 +616,12 @@ const Members: React.FC = () => {
                         <div>
                           <h4 className="text-sm font-medium text-gray-700 mb-2">Role</h4>
                           <div className="space-y-2">
-                            {ROLES.map((role) => (
+                            {[Role.Admin, Role.Member].map((role) => (
                               <label key={role} className="inline-flex items-center mr-4">
                                 <input
                                   type="checkbox"
                                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                  checked={tempFilters.role.includes(role)}
+                                  checked={state.filters.role.includes(role)}
                                   onChange={() => handleFilterChange('role', role)}
                                 />
                                 <span className="ml-2 text-sm text-gray-700">{role}</span>
@@ -539,19 +635,19 @@ const Members: React.FC = () => {
                     <div className="p-4 bg-gray-50">
                       <div className="flex items-center justify-between">
                         <button
-                          onClick={() => setIsFilterDropdownOpen(false)}
+                          onClick={() => dispatch({ type: 'SET_FILTER_DROPDOWN', isOpen: false })}
                           className="text-sm text-gray-600 hover:text-gray-800"
                         >
                           Cancel
                         </button>
                         <button
-                          onClick={handleApplyFilters}
-                          disabled={isLoading}
+                          onClick={handleFilterChange}
+                          disabled={state.isLoading}
                           className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                            isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                            state.isLoading ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
                         >
-                          {isLoading ? (
+                          {state.isLoading ? (
                             <>
                               <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -580,7 +676,7 @@ const Members: React.FC = () => {
                 Download List
               </button>
               <button
-                onClick={() => setShowInviteModal(true)}
+                onClick={() => dispatch({ type: 'SET_INVITE_MODAL', show: true })}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <BiPlus className="mr-2 h-5 w-5" />
@@ -599,23 +695,23 @@ const Members: React.FC = () => {
       </div>
 
       {/* Modals */}
-      {showInviteModal && <InviteModal onClose={() => setShowInviteModal(false)} />}
-      {showRemoveModal && selectedMember && (
+      {state.showInviteModal && <InviteModal onClose={() => dispatch({ type: 'SET_INVITE_MODAL', show: false })} />}
+      {state.showRemoveModal && state.selectedMember && (
         <RemoveModal
-          member={selectedMember}
+          member={state.selectedMember}
           onClose={() => {
-            setShowRemoveModal(false);
-            setSelectedMember(null);
+            dispatch({ type: 'SET_REMOVE_MODAL', show: false });
+            dispatch({ type: 'SET_SELECTED_MEMBER', member: null });
           }}
         />
       )}
 
       {/* Snackbar */}
       <Snackbar
-        isOpen={snackbar.isOpen}
-        message={snackbar.message}
-        type={snackbar.type}
-        onClose={() => setSnackbar(prev => ({ ...prev, isOpen: false }))}
+        isOpen={state.snackbar.isOpen}
+        message={state.snackbar.message}
+        type={state.snackbar.type}
+        onClose={() => dispatch({ type: 'SET_SNACKBAR', snackbar: { ...state.snackbar, isOpen: false } })}
       />
     </div>
   );
