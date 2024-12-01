@@ -62,8 +62,6 @@ const Register: React.FC = () => {
                 type="text"
                 value={formData.firstName}
                 onChange={handleChange}
-                required
-                placeholder="Enter your first name"
               />
             </div>
             <div>
@@ -73,8 +71,6 @@ const Register: React.FC = () => {
                 type="text"
                 value={formData.lastName}
                 onChange={handleChange}
-                required
-                placeholder="Enter your last name"
               />
             </div>
           </div>
@@ -86,8 +82,6 @@ const Register: React.FC = () => {
               type="email"
               value={formData.email}
               onChange={handleChange}
-              required
-              placeholder="Enter your email"
             />
           </div>
 
@@ -98,8 +92,6 @@ const Register: React.FC = () => {
               type="password"
               value={formData.password}
               onChange={handleChange}
-              required
-              placeholder="Create a password"
             />
           </div>
 

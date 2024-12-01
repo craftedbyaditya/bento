@@ -9,6 +9,7 @@ interface TextFieldProps {
   name: string;
   onDelete?: () => void;
   showDelete?: boolean;
+  disabled?: boolean;
 }
 
 const TextField: React.FC<TextFieldProps> = ({ 
@@ -19,13 +20,14 @@ const TextField: React.FC<TextFieldProps> = ({
   placeholder = '',
   name,
   onDelete,
-  showDelete = false
+  showDelete = false,
+  disabled = false
 }) => {
   return (
     <div className="w-full">
       <label 
         htmlFor={name} 
-        className="block mb-2 text-sm font-medium text-gray-700"
+        className={`block mb-2 text-sm font-medium ${disabled ? 'text-gray-500' : 'text-gray-700'}`}
       >
         {label}
       </label>
@@ -37,17 +39,21 @@ const TextField: React.FC<TextFieldProps> = ({
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          className="w-full px-4 py-2 
+          disabled={disabled}
+          className={`w-full px-4 py-2 
             border 
-            border-gray-300 
             rounded-md 
             focus:outline-none 
             focus:ring-2 
             focus:ring-blue-500 
             focus:border-transparent
-            pr-10"
+            pr-10
+            ${disabled 
+              ? 'bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed' 
+              : 'border-gray-300 text-gray-900'
+            }`}
         />
-        {showDelete && onDelete && (
+        {showDelete && onDelete && !disabled && (
           <button
             type="button"
             onClick={onDelete}
