@@ -7,6 +7,7 @@ import Register from '../pages/authentication/register';
 import Settings from '../pages/settings/settings';
 import Members from '../pages/settings/members';
 import Profile from '../pages/profile/profile';
+import ProjectSetup from '../pages/settings/ProjectSetup';
 
 export const router = createBrowserRouter([
   {
@@ -36,6 +37,10 @@ export const router = createBrowserRouter([
   {
     path: '/settings/members',
     element: <Members />,
+  },
+  {
+    path: '/project-setup',
+    element: <ProjectSetup />,
   },
   {
     path: '/profile',

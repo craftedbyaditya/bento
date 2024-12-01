@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BiBell, BiCog, BiUser, BiLogOut, BiChevronDown } from 'react-icons/bi';
+import { BiBell, BiCog, BiUser, BiLogOut } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
 
 interface AppBarProps {

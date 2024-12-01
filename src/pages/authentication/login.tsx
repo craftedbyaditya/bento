@@ -72,7 +72,13 @@ const Login: React.FC = () => {
         password: formData.password
       });
       console.log('Login successful:', response);
-      navigate('/dashboard');
+      
+      // Navigate based on whether user has projects
+      if (response.hasProjects) {
+        navigate('/dashboard');
+      } else {
+        navigate('/project-setup');
+      }
     } catch (error: any) {
       console.error('Login failed:', error);
       setErrors({
@@ -115,7 +121,6 @@ const Login: React.FC = () => {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              placeholder="Enter your email"
               disabled={isLoading}
             />
             {errors.email && (
@@ -130,7 +135,6 @@ const Login: React.FC = () => {
               name="password"
               value={formData.password}
               onChange={handleChange}
-              placeholder="Enter your password"
               disabled={isLoading}
             />
             <button

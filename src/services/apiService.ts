@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
-import { LoginRequest, LoginResponse, ApiResponse } from './types';
+import { LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, ApiResponse } from './types';
 import { cacheInstance } from '../utils/cache';
 import { HTTP_STATUS, ERROR_CODES, ERROR_MESSAGES } from '../utils/constants/httpConstants';
 
@@ -57,12 +57,15 @@ class ApiService {
     delete this.api.defaults.headers.common['Authorization'];
   }
 
-  public async login(credentials: LoginRequest): Promise<LoginResponse> {
+  public async login(credentials: LoginRequest): Promise<{ data: LoginResponse; hasProjects: boolean }> {
     try {
       // Check cache first
       const cachedUser = cacheInstance.get(this.CACHE_KEYS.USER);
       if (cachedUser) {
-        return cachedUser;
+        return {
+          data: cachedUser,
+          hasProjects: cachedUser.data.projects?.length > 0
+        };
       }
 
       const response: AxiosResponse<LoginResponse> = await this.api.post('/auth/v1/login', credentials);
@@ -72,7 +75,10 @@ class ApiService {
         cacheInstance.set(this.CACHE_KEYS.USER, response.data);
       }
 
-      return response.data;
+      return {
+        data: response.data,
+        hasProjects: response.data.data.projects?.length > 0
+      };
     } catch (error: any) {
       if (error.response) {
         throw new Error(
@@ -80,6 +86,34 @@ class ApiService {
             ? ERROR_CODES.INVALID_CREDENTIALS
             : ERROR_CODES.SERVER_ERROR]
         );
+      }
+      throw new Error(ERROR_MESSAGES[ERROR_CODES.NETWORK_ERROR]);
+    }
+  }
+
+  public async register(userData: RegisterRequest): Promise<RegisterResponse> {
+    try {
+      const response: AxiosResponse<RegisterResponse> = await this.api.post('/auth/v1/register', userData);
+      
+      // Cache the successful response
+      if (response.status === HTTP_STATUS.OK || response.status === HTTP_STATUS.CREATED) {
+        const userDataToCache = {
+          message: response.data.message,
+          data: {
+            id: response.data.data.userId,
+            firstName: response.data.data.firstName,
+            lastName: response.data.data.lastName,
+            email: response.data.data.email,
+            projects: [] // New users start with no projects
+          }
+        };
+        cacheInstance.set(this.CACHE_KEYS.USER, userDataToCache);
+      }
+
+      return response.data;
+    } catch (error: any) {
+      if (error.response) {
+        throw new Error(ERROR_MESSAGES[ERROR_CODES.SERVER_ERROR]);
       }
       throw new Error(ERROR_MESSAGES[ERROR_CODES.NETWORK_ERROR]);
     }
