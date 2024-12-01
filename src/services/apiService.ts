@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
-import { LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, ApiResponse } from './types';
+import { LoginRequest, LoginResponse, RegisterRequest, RegisterResponse } from './types';
 import { cacheInstance } from '../utils/cache';
 import { HTTP_STATUS, ERROR_CODES, ERROR_MESSAGES } from '../utils/constants/httpConstants';
 
@@ -8,6 +8,8 @@ class ApiService {
   private api: AxiosInstance;
   private readonly CACHE_KEYS = {
     USER: 'user_data',
+    USER_ID: 'user_id',
+    PROJECT_ID: 'project_id'
   };
 
   private constructor() {
@@ -57,22 +59,28 @@ class ApiService {
     delete this.api.defaults.headers.common['Authorization'];
   }
 
+  public async post<T>(
+    url: string, 
+    data?: any, 
+    config?: any
+  ): Promise<AxiosResponse<T>> {
+    return this.api.post<T>(url, data, config);
+  }
+
   public async login(credentials: LoginRequest): Promise<{ data: LoginResponse; hasProjects: boolean }> {
     try {
-      // Check cache first
-      const cachedUser = cacheInstance.get(this.CACHE_KEYS.USER);
-      if (cachedUser) {
-        return {
-          data: cachedUser,
-          hasProjects: cachedUser.data.projects?.length > 0
-        };
-      }
+      // Clear any existing cache before login
+      cacheInstance.clear();
 
-      const response: AxiosResponse<LoginResponse> = await this.api.post('/auth/v1/login', credentials);
+      const response: AxiosResponse<LoginResponse> = await this.post('/auth/v1/login', credentials);
       
       // Cache the successful response
       if (response.status === HTTP_STATUS.OK) {
         cacheInstance.set(this.CACHE_KEYS.USER, response.data);
+        cacheInstance.set(this.CACHE_KEYS.USER_ID, response.data.data.id);
+        if (response.data.data.projects?.length > 0) {
+          cacheInstance.set(this.CACHE_KEYS.PROJECT_ID, response.data.data.projects[0].project_id);
+        }
       }
 
       return {
@@ -93,7 +101,7 @@ class ApiService {
 
   public async register(userData: RegisterRequest): Promise<RegisterResponse> {
     try {
-      const response: AxiosResponse<RegisterResponse> = await this.api.post('/auth/v1/register', userData);
+      const response: AxiosResponse<RegisterResponse> = await this.post('/auth/v1/register', userData);
       
       // Cache the successful response
       if (response.status === HTTP_STATUS.OK || response.status === HTTP_STATUS.CREATED) {
@@ -121,10 +129,11 @@ class ApiService {
 
   public logout(): void {
     cacheInstance.remove(this.CACHE_KEYS.USER);
+    cacheInstance.remove(this.CACHE_KEYS.USER_ID);
+    cacheInstance.remove(this.CACHE_KEYS.PROJECT_ID);
     this.removeAuthToken();
   }
 
-  // Add other API methods here
 }
 
 export const apiService = ApiService.getInstance();

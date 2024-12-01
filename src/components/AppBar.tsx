@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BiBell, BiCog, BiUser, BiLogOut } from 'react-icons/bi';
+import { BiBell, BiCog, BiUser, BiLogOut, BiChevronDown } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
 
 interface AppBarProps {
@@ -11,6 +11,7 @@ interface AppBarProps {
   showBackButton?: boolean;
   onBackClick?: () => void;
   hideProfileMenu?: boolean;
+  notificationCount?: number;
 }
 
 const AppBar: React.FC<AppBarProps> = ({
@@ -21,7 +22,8 @@ const AppBar: React.FC<AppBarProps> = ({
   userName = 'User',
   showBackButton = false,
   onBackClick,
-  hideProfileMenu = false
+  hideProfileMenu = false,
+  notificationCount = 0
 }) => {
   const navigate = useNavigate();
   const getInitials = (name: string) => {
@@ -72,6 +74,7 @@ const AppBar: React.FC<AppBarProps> = ({
               onClick={onProjectSelect}
             >
               <span>{projectName || 'Select Project'}</span>
+              <BiChevronDown className="h-5 w-5 text-gray-500" />
             </button>
           ) : (
             <span className="text-sm font-medium text-gray-700">{projectName}</span>
@@ -80,9 +83,15 @@ const AppBar: React.FC<AppBarProps> = ({
 
         {/* Right Icons */}
         <div className="flex items-center space-x-4">
-          <button className="p-2 text-gray-400 hover:text-gray-500">
-            <BiBell className="h-6 w-6" />
-          </button>
+          {/* Notification Icon */}
+          <div className="relative">
+            <BiBell className="h-6 w-6 text-gray-500 hover:text-gray-700 cursor-pointer" />
+            {notificationCount > 0 && (
+              <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full">
+                {notificationCount}
+              </span>
+            )}
+          </div>
           <button 
             onClick={() => navigate('/settings')}
             className="p-2 text-gray-400 hover:text-gray-500"

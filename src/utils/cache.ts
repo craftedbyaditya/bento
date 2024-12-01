@@ -1,11 +1,9 @@
 class Cache {
   private static instance: Cache;
-  private cache: Map<string, { data: any; timestamp: number }>;
+  private readonly prefix = 'bento_';
   private defaultTTL: number = 3600000; // 1 hour in milliseconds
 
-  private constructor() {
-    this.cache = new Map();
-  }
+  private constructor() {}
 
   public static getInstance(): Cache {
     if (!Cache.instance) {
@@ -15,30 +13,40 @@ class Cache {
   }
 
   set(key: string, value: any, ttl: number = this.defaultTTL): void {
-    this.cache.set(key, {
+    const item = {
       data: value,
       timestamp: Date.now() + ttl,
-    });
+    };
+    localStorage.setItem(this.prefix + key, JSON.stringify(item));
   }
 
-  get(key: string): any | null {
-    const item = this.cache.get(key);
+  get(key: string): any {
+    const item = localStorage.getItem(this.prefix + key);
     if (!item) return null;
 
-    if (Date.now() > item.timestamp) {
-      this.cache.delete(key);
+    const { data, timestamp } = JSON.parse(item);
+    
+    // Check if the item has expired
+    if (Date.now() > timestamp) {
+      this.remove(key);
       return null;
     }
 
-    return item.data;
+    return data;
   }
 
   remove(key: string): void {
-    this.cache.delete(key);
+    localStorage.removeItem(this.prefix + key);
   }
 
   clear(): void {
-    this.cache.clear();
+    // Only clear items with our prefix
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(this.prefix)) {
+        localStorage.removeItem(key);
+      }
+    }
   }
 }
 

@@ -1,11 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { BiSearch, BiTrash, BiDownload, BiDotsHorizontalRounded, BiFilterAlt, BiEditAlt, BiPlus } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
 import AppBar from '../../components/AppBar';
+import { cacheInstance } from '../../utils/cache';
+import { apiService } from '../../services/apiService';
 
 interface Project {
-  id: string;
-  name: string;
+  project_id: number;
+  project_name: string;
+  role_id: number;
+  role_name: string;
+}
+
+interface Translation {
+  key: string;
+  tag: string;
+  status: string;
+  last_updated_by: string;
+  last_updated_by_role: string;
+  last_updated_at: string;
+}
+
+interface ApiResponse {
+  message: string;
+  data: {
+    translations: Translation[];
+    projects: Project[];
+    notification_count: number;
+  };
 }
 
 interface TableRow {
@@ -14,7 +37,7 @@ interface TableRow {
   updatedBy: string;
   modifiedAt: string;
   role: string;
-  status: 'active' | 'inactive' | 'pending' | 'archive';
+  status: 'draft' | 'published' |'archive';
   tag: string;
 }
 
@@ -28,6 +51,9 @@ interface Filters {
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [translations, setTranslations] = useState<Translation[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [notificationCount, setNotificationCount] = useState(0);
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
@@ -50,42 +76,118 @@ const Dashboard: React.FC = () => {
     updatedBy: []
   });
 
-  // Sample data
-  const projects: Project[] = [
-    { id: '1', name: 'Project Alpha' },
-    { id: '2', name: 'Project Beta' },
-    { id: '3', name: 'Project Gamma' },
-  ];
+  useEffect(() => {
+    checkAuthAndFetchData();
+  }, []);
 
-  const tableData: TableRow[] = [
-    {
-      id: '1',
-      key: 'API_KEY',
-      updatedBy: 'John Doe',
-      modifiedAt: '2023-12-01',
-      role: 'Admin',
-      status: 'active',
-      tag: 'Production'
-    },
-    {
-      id: '2',
-      key: 'DB_URL',
-      updatedBy: 'Jane Smith',
-      modifiedAt: '2023-12-02',
-      role: 'Developer',
-      status: 'inactive',
-      tag: 'Development'
-    },
-    {
-      id: '3',
-      key: 'SECRET_KEY',
-      updatedBy: 'Mike Johnson',
-      modifiedAt: '2023-12-03',
-      role: 'Viewer',
-      status: 'pending',
-      tag: 'Staging'
-    },
-  ];
+  const checkAuthAndFetchData = async () => {
+    const userId = cacheInstance.get('user_id');
+    
+    // If no user ID, redirect to login
+    if (!userId) {
+      // Clear any remaining cache
+      cacheInstance.clear();
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    const projectId = cacheInstance.get('project_id');
+    
+    // If no project ID, fetch projects to check if user has any
+    if (!projectId) {
+      try {
+        const response = await apiService.post<ApiResponse>('/translations/v1/getAllKeys', {
+          last_health_check_timestamp: Math.floor(Date.now() / 1000).toString()
+        }, {
+          headers: {
+            'x-user-id': userId
+          }
+        });
+
+        const { projects } = response.data.data;
+        
+        if (projects && projects.length > 0) {
+          // User has projects but projectId was cleared, set first project and fetch data
+          cacheInstance.set('project_id', projects[0].project_id);
+          await fetchDashboardData();
+        } else {
+          // No projects, redirect to project setup
+          navigate('/project-setup', { replace: true });
+        }
+      } catch (error) {
+        console.error('Error checking projects:', error);
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          // Unauthorized, clear cache and redirect to login
+          cacheInstance.clear();
+          navigate('/login', { replace: true });
+        }
+      }
+      return;
+    }
+
+    // If both userId and projectId exist, fetch dashboard data
+    await fetchDashboardData();
+  };
+
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      const userId = cacheInstance.get('user_id');
+      const projectId = cacheInstance.get('project_id');
+
+      // Validate required values
+      if (!userId || !projectId) {
+        console.error('Missing required values:', { userId, projectId });
+        throw new Error('Missing user ID or project ID');
+      }
+
+      // Get current timestamp in seconds
+      const currentTimestamp = Math.floor(Date.now() / 1000).toString();
+
+      console.log('Making request with:', {
+        userId,
+        projectId,
+        timestamp: currentTimestamp
+      });
+
+      const response = await apiService.post<ApiResponse>('/translations/v1/getAllKeys', {
+        last_health_check_timestamp: currentTimestamp
+      }, {
+        headers: {
+          'x-user-id': userId,
+          'x-project-id': projectId
+        }
+      });
+
+      console.log('Response received:', response.data);
+
+      const { translations, projects, notification_count } = response.data.data;
+      setTranslations(translations);
+      setProjects(projects);
+      setNotificationCount(notification_count);
+      
+      if (projects.length > 0 && !selectedProject) {
+        setSelectedProject(projects[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Server response:', error.response?.data);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const tableData: TableRow[] = translations.map((translation) => ({
+    id: translation.key,
+    key: translation.key,
+    updatedBy: translation.last_updated_by,
+    modifiedAt: new Date(translation.last_updated_at).toLocaleString(),
+    role: translation.last_updated_by_role,
+    status: translation.status.toLowerCase() as 'draft' | 'published' |'archive',
+    tag: translation.tag
+  }));
 
   const handleRowSelect = (rowId: string) => {
     setSelectedRows(prev =>
@@ -184,30 +286,34 @@ const Dashboard: React.FC = () => {
   };
 
   const getAvailableStatuses = (currentStatus: TableRow['status']): TableRow['status'][] => {
-    const allStatuses: TableRow['status'][] = ['pending', 'inactive', 'archive'];
+    const allStatuses: TableRow['status'][] = ['draft', 'published', 'archive'];
     return allStatuses.filter(status => status !== currentStatus);
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <AppBar
-        projectName={selectedProject?.name || 'Select Project'}
+        projectName={selectedProject?.project_name || 'Select Project'}
         isProjectSelectable={true}
         onProjectSelect={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
+        notificationCount={notificationCount}
       />
 
       {isProjectDropdownOpen && (
         <div className="absolute z-10 mt-1 ml-6 w-56 bg-white border border-gray-200 rounded-md shadow-lg">
           {projects.map(project => (
             <div
-              key={project.id}
+              key={project.project_id}
               className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
               onClick={() => {
                 setSelectedProject(project);
                 setIsProjectDropdownOpen(false);
+                // Update project_id in cache and refetch data
+                cacheInstance.set('project_id', project.project_id);
+                fetchDashboardData();
               }}
             >
-              {project.name}
+              {project.project_name}
             </div>
           ))}
         </div>
@@ -453,9 +559,8 @@ const Dashboard: React.FC = () => {
                   </td>
                   <td className="px-6 py-2 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize
-                      ${row.status === 'active' ? 'bg-green-100 text-green-800' : ''}
-                      ${row.status === 'inactive' ? 'bg-gray-100 text-gray-800' : ''}
-                      ${row.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
+                      ${row.status === 'published' ? 'bg-green-100 text-green-800' : ''}
+                      ${row.status === 'draft' ? 'bg-gray-100 text-gray-800' : ''}
                       ${row.status === 'archive' ? 'bg-red-100 text-red-800' : ''}
                     `}>
                       {row.status}
@@ -536,9 +641,9 @@ const Dashboard: React.FC = () => {
                                     onClick={() => handleStatusChange(row.id, status)}
                                   >
                                     <span
-                                      className={`mr-2 h-2 w-2 rounded-full ${status === 'pending' ? 'bg-yellow-400' :
-                                        status === 'inactive' ? 'bg-gray-400' :
-                                          status === 'archive' ? 'bg-red-400' : ''
+                                      className={`mr-2 h-2 w-2 rounded-full ${status === 'draft' ? 'bg-yellow-400' :
+                                        status === 'archive' ? 'bg-gray-400' : ''
+                                         
                                         }`}
                                     />
                                     {status}
