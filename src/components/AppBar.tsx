@@ -1,5 +1,6 @@
 import React from 'react';
 import { BiBell, BiCog, BiChevronDown } from 'react-icons/bi';
+import { useNavigate } from 'react-router-dom';
 
 interface AppBarProps {
   projectName: string;
@@ -12,6 +13,8 @@ const AppBar: React.FC<AppBarProps> = ({
   onProjectSelect, 
   isProjectSelectable = false 
 }) => {
+  const navigate = useNavigate();
+
   return (
     <div className="bg-white border-b border-gray-200">
       <div className="px-6 py-3 flex justify-between items-center">
@@ -33,7 +36,10 @@ const AppBar: React.FC<AppBarProps> = ({
           <button className="p-2 text-gray-400 hover:text-gray-500">
             <BiBell className="h-6 w-6" />
           </button>
-          <button className="p-2 text-gray-400 hover:text-gray-500">
+          <button 
+            onClick={() => navigate('/settings')}
+            className="p-2 text-gray-400 hover:text-gray-500"
+          >
             <BiCog className="h-6 w-6" />
           </button>
           <div className="h-6 w-6 rounded-full bg-gray-200">

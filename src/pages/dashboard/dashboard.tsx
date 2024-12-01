@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BiBell, BiCog, BiSearch, BiTrash, BiChevronDown, BiDownload, BiDotsHorizontalRounded, BiFilterAlt, BiEditAlt, BiPlus } from 'react-icons/bi';
+import { BiSearch, BiTrash, BiDownload, BiDotsHorizontalRounded, BiFilterAlt, BiEditAlt, BiPlus } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
 import AppBar from '../../components/AppBar';
 
@@ -190,12 +190,12 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppBar 
-        projectName={selectedProject?.name || 'Select Project'} 
+      <AppBar
+        projectName={selectedProject?.name || 'Select Project'}
         isProjectSelectable={true}
         onProjectSelect={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
       />
-      
+
       {isProjectDropdownOpen && (
         <div className="absolute z-10 mt-1 ml-6 w-56 bg-white border border-gray-200 rounded-md shadow-lg">
           {projects.map(project => (
@@ -362,9 +362,9 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
             {/* Action Buttons */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <button
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/add-key')}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <BiPlus className="mr-2 h-5 w-5" />
@@ -429,8 +429,8 @@ const Dashboard: React.FC = () => {
                 <tr
                   key={row.id}
                   className={`${selectedRows.includes(row.id)
-                      ? 'bg-blue-50'
-                      : 'hover:bg-gray-50'
+                    ? 'bg-blue-50'
+                    : 'hover:bg-gray-50'
                     } transition-colors duration-150 ease-in-out`}
                 >
                   <td className="px-6 py-2 whitespace-nowrap">
@@ -537,8 +537,8 @@ const Dashboard: React.FC = () => {
                                   >
                                     <span
                                       className={`mr-2 h-2 w-2 rounded-full ${status === 'pending' ? 'bg-yellow-400' :
-                                          status === 'inactive' ? 'bg-gray-400' :
-                                            status === 'archive' ? 'bg-red-400' : ''
+                                        status === 'inactive' ? 'bg-gray-400' :
+                                          status === 'archive' ? 'bg-red-400' : ''
                                         }`}
                                     />
                                     {status}
