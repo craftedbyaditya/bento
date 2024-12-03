@@ -7,7 +7,8 @@ import { cacheInstance } from '../../utils/cache';
 import { apiService } from '../../services/apiService';
 import { useProject } from '../../hooks/useProject';
 import { useLanguages } from '../../hooks/useLanguages';
-import { ApiResponse, GetAllKeysResponse, Translation, Project } from '../../types/api';
+import { ApiResponse, GetAllKeysResponse, Translation, Project, Language } from '../../types/api';
+import { formatLocalDateTime } from '../../utils/dateUtils';
 
 interface TableRow {
   id: string;
@@ -25,6 +26,17 @@ interface Filters {
   role: string[];
   tag: string[];
   updatedBy: string[];
+}
+
+interface DashboardResponse {
+  data: {
+    translations: any[];
+    projects: any[];
+    notification_count: number;
+    force_logout: boolean;
+    under_maintenance: boolean;
+    languages: string[];
+  };
 }
 
 const Dashboard: React.FC = () => {
@@ -57,144 +69,99 @@ const Dashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    checkAuthAndFetchData();
-  }, []);
-
-  const checkAuthAndFetchData = async () => {
-    const userId = cacheInstance.get('user_id');
-    
-    // If no user ID, redirect to login
-    if (!userId) {
-      // Clear any remaining cache
-      cacheInstance.clear();
-      navigate('/login', { replace: true });
-      return;
-    }
-
-    const projectId = cacheInstance.get('project_id');
-    
-    // If no project ID, fetch projects to check if user has any
-    if (!projectId) {
+    const fetchDashboardData = async () => {
+      setIsLoading(true);
       try {
-        const response = await apiService.post<ApiResponse<GetAllKeysResponse>>('/translations/v1/getAllKeys', {
+        const userId = cacheInstance.get('user_id');  // Use consistent key
+        const projectId = cacheInstance.get('project_id');  // Use consistent key
+
+        if (!userId || !projectId) {
+          console.error('Missing required values:', { userId, projectId });
+          navigate('/login');
+          return;
+        }
+
+        const requestData = {
+          userId,
+          projectId
+        };
+
+        const response = await apiService.post<DashboardResponse>('/translations/v1/getAllKeys', {
           last_health_check_timestamp: Math.floor(Date.now() / 1000).toString()
         }, {
           headers: {
-            'x-user-id': userId
+            'x-user-id': userId,
+            'x-project-id': projectId
           }
         });
 
-        const { projects } = response.data.data;
-        
-        if (projects && projects.length > 0) {
-          // User has projects but projectId was cleared, set first project and fetch data
-          updateProject(projects[0]);
-          await fetchDashboardData();
-        } else {
-          // No projects, redirect to project setup
-          navigate('/project-setup', { replace: true });
+        const { 
+          translations, 
+          projects, 
+          notification_count,
+          force_logout,
+          under_maintenance,
+          languages: apiLanguages 
+        } = response.data.data;
+
+        // Update languages in cache if received from API
+        if (apiLanguages?.length > 0) {
+          // Transform string[] to Language[]
+          const languagesData: Language[] = apiLanguages.map(code => ({
+            language_code: code,
+            language_name: code  // You might want to improve this mapping
+          }));
+          updateLanguages(languagesData);
         }
-      } catch (error) {
-        console.error('Error checking projects:', error);
-        if (axios.isAxiosError(error) && error.response?.status === 401) {
-          // Unauthorized, clear cache and redirect to login
+
+        // Handle force logout if needed
+        if (force_logout) {
           cacheInstance.clear();
           navigate('/login', { replace: true });
+          return;
         }
-      }
-      return;
-    }
 
-    // If both userId and projectId exist, fetch dashboard data
-    await fetchDashboardData();
-  };
-
-  const fetchDashboardData = async () => {
-    try {
-      setIsLoading(true);
-      const userId = cacheInstance.get('user_id');
-      const projectId = cacheInstance.get('project_id');
-
-      // Validate required values
-      if (!userId || !projectId) {
-        console.error('Missing required values:', { userId, projectId });
-        throw new Error('Missing user ID or project ID');
-      }
-
-      // Get current timestamp in seconds
-      const currentTimestamp = Math.floor(Date.now() / 1000).toString();
-
-      console.log('Making request with:', {
-        userId,
-        projectId,
-        timestamp: currentTimestamp
-      });
-
-      const response = await apiService.post<ApiResponse<GetAllKeysResponse>>('/translations/v1/getAllKeys', {
-        last_health_check_timestamp: currentTimestamp
-      }, {
-        headers: {
-          'x-user-id': userId,
-          'x-project-id': projectId
+        setTranslations(translations);
+        setProjects(projects);
+        setNotificationCount(notification_count);
+        
+        // Find and set the selected project based on the cached project ID
+        const cachedProjectId = cacheInstance.get('project_id');
+        const projectToSelect = projects.find(p => p.project_id === cachedProjectId);
+        if (projectToSelect) {
+          updateProject(projectToSelect);
+        } else if (projects.length > 0) {
+          // Fallback to first project if cached project not found
+          updateProject(projects[0]);
         }
-      });
-
-      console.log('Response received:', response.data);
-
-      const { 
-        translations, 
-        projects, 
-        notification_count,
-        force_logout,
-        under_maintenance,
-        languages: apiLanguages 
-      } = response.data.data;
-
-      // Update languages in cache if received from API
-      if (apiLanguages?.length > 0) {
-        updateLanguages(apiLanguages);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        if (axios.isAxiosError(error)) {
+          console.error('Server response:', error.response?.data);
+        }
+      } finally {
+        setIsLoading(false);
       }
+    };
 
-      // Handle force logout if needed
-      if (force_logout) {
-        cacheInstance.clear();
-        navigate('/login', { replace: true });
-        return;
-      }
+    fetchDashboardData();
+  }, [navigate]);
 
-      setTranslations(translations);
-      setProjects(projects);
-      setNotificationCount(notification_count);
-      
-      // Find and set the selected project based on the cached project ID
-      const cachedProjectId = cacheInstance.get('project_id');
-      const projectToSelect = projects.find(p => p.project_id === cachedProjectId);
-      if (projectToSelect) {
-        updateProject(projectToSelect);
-      } else if (projects.length > 0) {
-        // Fallback to first project if cached project not found
-        updateProject(projects[0]);
-      }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      if (axios.isAxiosError(error)) {
-        console.error('Server response:', error.response?.data);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const tableData: TableRow[] = translations.map((translation) => ({
-    id: translation.key_id.toString(),
-    key: translation.key,
-    english: translation.english,
-    updatedBy: translation.last_updated_by,
-    modifiedAt: new Date(translation.last_updated_at).toLocaleString(),
-    role: translation.last_updated_by_role,
-    status: translation.status.toLowerCase() as 'draft' | 'published' | 'archive',
-    tag: translation.tag
-  }));
+  const tableData: TableRow[] = translations.map((translation) => {
+    console.log('Raw timestamp:', translation.last_updated_at);
+    const formattedDate = formatLocalDateTime(translation.last_updated_at);
+    console.log('Formatted date:', formattedDate);
+    return {
+      id: translation.key_id.toString(),
+      key: translation.key,
+      english: translation.english,
+      updatedBy: translation.last_updated_by,
+      modifiedAt: formattedDate,
+      role: translation.last_updated_by_role,
+      status: translation.status.toLowerCase() as 'draft' | 'published' | 'archive',
+      tag: translation.tag
+    };
+  });
 
   const handleRowSelect = (rowId: string) => {
     setSelectedRows(prev =>
@@ -315,7 +282,7 @@ const Dashboard: React.FC = () => {
               onClick={() => {
                 updateProject(project);
                 setIsProjectDropdownOpen(false);
-                fetchDashboardData();
+                // fetchDashboardData();
               }}
             >
               {project.project_name}

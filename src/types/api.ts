@@ -39,3 +39,36 @@ export interface GetAllKeysResponse {
   new_feature: boolean;
   new_feature_message: string;
 }
+
+export interface TranslationInput {
+  language_code: string;
+  language_name: string;
+  translation: string;
+}
+
+export interface AddKeyRequest {
+  key: string;
+  tag: string;
+  english: string;
+  status?: 'Draft' | 'Published';
+  translations: TranslationInput[];
+}
+
+export interface User {
+  id: string;
+  full_name: string;
+}
+
+export interface AddKeyResponse {
+  created_at: string;
+  updated_at: string;
+  id: number;
+  project_id: number;
+  key: string;
+  tag: string;
+  english: string;
+  created_by: User;
+  last_updated_by: User;
+  status: string;
+  translations: TranslationInput[];
+}

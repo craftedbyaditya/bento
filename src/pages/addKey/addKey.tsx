@@ -6,6 +6,9 @@ import { useProject } from '../../hooks/useProject';
 import { useLanguages } from '../../hooks/useLanguages';
 import TextField from '../../components/TextField';
 import AppBar from '../../components/AppBar';
+import { apiService } from '../../services/apiService';
+import { AddKeyRequest, AddKeyResponse, ApiResponse } from '../../types/api';
+import { formatLocalDateTime } from '../../utils/dateUtils';
 
 interface Language {
   language_code: string;
@@ -15,6 +18,7 @@ interface Language {
 interface FormData {
   key: string;
   tag: string;
+  english: string;
   translations: {
     [key: string]: string;
   };
@@ -29,6 +33,7 @@ const AddKey: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
     key: '',
     tag: '',
+    english: '',
     translations: {
       en: ''
     }
@@ -42,8 +47,9 @@ const AddKey: React.FC = () => {
   const [showNewTagInput, setShowNewTagInput] = useState(false);
   const [availableTags, setAvailableTags] = useState(SAMPLE_TAGS);
   const [searchQuery, setSearchQuery] = useState('');
-
   const [isTranslating, setIsTranslating] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const filteredLanguages = useMemo(() => {
     return languages.filter(lang => 
@@ -53,13 +59,18 @@ const AddKey: React.FC = () => {
   }, [searchQuery, selectedLanguages, languages]);
 
   const handleInputChange = (field: string, value: string) => {
-    if (field.startsWith('translation_')) {
-      const language = field.replace('translation_', '');
+    if (field === 'english') {
+      setFormData(prev => ({
+        ...prev,
+        english: value
+      }));
+    } else if (field.startsWith('translation_')) {
+      const langCode = field.replace('translation_', '');
       setFormData(prev => ({
         ...prev,
         translations: {
           ...prev.translations,
-          [language]: value
+          [langCode]: value
         }
       }));
     } else {
@@ -80,26 +91,27 @@ const AddKey: React.FC = () => {
 
   const handleApplyLanguages = () => {
     setSelectedLanguages(tempSelectedLanguages);
-    const newTranslations = { ...formData.translations };
     
-    // Add new languages
+    // Add new languages to translations object
+    const newTranslations = { ...formData.translations };
     tempSelectedLanguages.forEach(langCode => {
-      if (!formData.translations[langCode]) {
+      if (!newTranslations[langCode] && langCode !== 'en') {
         newTranslations[langCode] = '';
       }
     });
     
     // Remove unselected languages
-    Object.keys(formData.translations).forEach(langCode => {
+    Object.keys(newTranslations).forEach(langCode => {
       if (!tempSelectedLanguages.includes(langCode) && langCode !== 'en') {
         delete newTranslations[langCode];
       }
     });
-
+    
     setFormData(prev => ({
       ...prev,
       translations: newTranslations
     }));
+    
     setShowLanguageSelector(false);
   };
 
@@ -137,6 +149,60 @@ const AddKey: React.FC = () => {
     }
   };
 
+  const handleSubmit = async (data: typeof formData & { status: 'Draft' | 'Published' }) => {
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      // Validate required fields
+      if (!data.key || !data.english) {
+        throw new Error('Key and English translation are required');
+      }
+
+      // Check authentication
+      if (!apiService.isAuthenticated()) {
+        navigate('/login');
+        return;
+      }
+
+      // Prepare translations array
+      const translations = Object.entries(data.translations)
+        .filter(([code]) => code !== 'en' && selectedLanguages.includes(code))
+        .map(([code, translation]) => {
+          const lang = languages.find(l => l.language_code === code);
+          return {
+            language_code: code,
+            language_name: lang?.language_name || code,
+            translation
+          };
+        });
+
+      const requestData: AddKeyRequest = {
+        key: data.key.trim(),
+        tag: data.tag?.trim() || 'default',
+        english: data.english.trim(),
+        status: data.status,
+        translations
+      };
+
+      const axiosResponse = await apiService.post<ApiResponse<AddKeyResponse>>('/translations/v1/addKey', requestData);
+      const response = axiosResponse.data;
+      console.log('API Response:', {
+        ...response.data,
+        created_at: formatLocalDateTime(response.data.created_at),
+        updated_at: formatLocalDateTime(response.data.updated_at)
+      });
+      // Navigate back to dashboard on success
+      navigate('/dashboard');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create key';
+      console.error('Error in handleSubmit:', errorMessage);
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <AppBar 
@@ -157,7 +223,7 @@ const AddKey: React.FC = () => {
             </div>
           </div>
 
-          <form className="p-8 space-y-10">
+          <form onSubmit={(e) => handleSubmit({ ...formData, status: 'Draft' })} className="p-8 space-y-10">
             {/* Section 1: Key and Tag */}
             <div className="space-y-8">
               <h3 className="text-base font-semibold text-gray-900 uppercase tracking-wider">Basic Information</h3>
@@ -194,7 +260,7 @@ const AddKey: React.FC = () => {
                           <div className="relative">
                             <input
                               type="text"
-                              className="block w-full rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-500 sm:text-sm sm:leading-6"
+                              className="block w-full rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm sm:leading-6"
                               placeholder="Search tags..."
                               value={newTag}
                               onChange={(e) => setNewTag(e.target.value)}
@@ -288,21 +354,41 @@ const AddKey: React.FC = () => {
               </div>
 
               <div className="space-y-4">
-                {selectedLanguages.map((langCode) => (
-                  <div key={langCode} className="flex items-center space-x-2 bg-gray-100 rounded-md px-3 py-1">
-                    <span className="text-sm">
-                      {`${langCode === 'en' ? 'English *' : languages.find(l => l.language_code === langCode)?.language_name || ''}`}
-                    </span>
-                    {langCode !== 'en' && (
-                      <button
-                        onClick={() => setSelectedLanguages(prev => prev.filter(code => code !== langCode))}
-                        className="text-gray-500 hover:text-gray-700"
-                      >
-                        <BiX className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {/* English Translation Field */}
+                <div className="relative">
+                  <TextField
+                    label="English Translation *"
+                    name="english"
+                    value={formData.english}
+                    onChange={(e) => handleInputChange('english', e.target.value)}
+  
+                  />
+                </div>
+
+                {/* Other Language Translation Fields */}
+                {selectedLanguages
+                  .filter(langCode => langCode !== 'en')
+                  .map((langCode) => (
+                    <div key={langCode} className="relative">
+                      <TextField
+                        label={`${languages.find(l => l.language_code === langCode)?.language_name || langCode} Translation`}
+                        name={`translation_${langCode}`}
+                        value={formData.translations[langCode] || ''}
+                        onChange={(e) => handleInputChange(`translation_${langCode}`, e.target.value)}
+                        placeholder={`Enter ${languages.find(l => l.language_code === langCode)?.language_name || langCode} translation`}
+                        onDelete={() => {
+                          const newTranslations = { ...formData.translations };
+                          delete newTranslations[langCode];
+                          setFormData(prev => ({
+                            ...prev,
+                            translations: newTranslations
+                          }));
+                          setSelectedLanguages(prev => prev.filter(code => code !== langCode));
+                        }}
+                        showDelete
+                      />
+                    </div>
+                  ))}
               </div>
             </div>
 
@@ -383,7 +469,12 @@ const AddKey: React.FC = () => {
             )}
 
             {/* Form Actions */}
-            <div className="flex justify-end space-x-3 pt-8 border-t border-gray-200">
+            <div className="flex justify-end space-x-4 pt-8 border-t border-gray-200">
+              {error && (
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => navigate('/dashboard')}
@@ -393,28 +484,19 @@ const AddKey: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  // Add draft saving logic here
-                  console.log('Saving as draft:', formData);
-                }}
-                className="px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                onClick={() => handleSubmit({ ...formData, status: 'Draft' })}
+                disabled={isLoading || !formData.key || !formData.english}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save as Draft
+                {isLoading ? 'Saving...' : 'Save as Draft'}
               </button>
               <button
-                type="submit"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (!formData.translations.en) {
-                    alert('English translation is required');
-                    return;
-                  }
-                  // Add publish logic here
-                  console.log('Publishing:', formData);
-                }}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                type="button"
+                onClick={() => handleSubmit({ ...formData, status: 'Published' })}
+                disabled={isLoading || !formData.key || !formData.english}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md shadow-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save and Publish
+                {isLoading ? 'Publishing...' : 'Save and Publish'}
               </button>
             </div>
           </form>
