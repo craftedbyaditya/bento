@@ -6,39 +6,17 @@ import AppBar from '../../components/AppBar';
 import { cacheInstance } from '../../utils/cache';
 import { apiService } from '../../services/apiService';
 import { useProject } from '../../hooks/useProject';
-
-interface Project {
-  project_id: number;
-  project_name: string;
-  role_id: number;
-  role_name: string;
-}
-
-interface Translation {
-  key: string;
-  tag: string;
-  status: string;
-  last_updated_by: string;
-  last_updated_by_role: string;
-  last_updated_at: string;
-}
-
-interface ApiResponse {
-  message: string;
-  data: {
-    translations: Translation[];
-    projects: Project[];
-    notification_count: number;
-  };
-}
+import { useLanguages } from '../../hooks/useLanguages';
+import { ApiResponse, GetAllKeysResponse, Translation, Project } from '../../types/api';
 
 interface TableRow {
   id: string;
   key: string;
+  english: string;
   updatedBy: string;
   modifiedAt: string;
   role: string;
-  status: 'draft' | 'published' |'archive';
+  status: 'draft' | 'published' | 'archive';
   tag: string;
 }
 
@@ -52,6 +30,7 @@ interface Filters {
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { currentProject, updateProject } = useProject();
+  const { languages, updateLanguages } = useLanguages();
   const [translations, setTranslations] = useState<Translation[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [notificationCount, setNotificationCount] = useState(0);
@@ -97,7 +76,7 @@ const Dashboard: React.FC = () => {
     // If no project ID, fetch projects to check if user has any
     if (!projectId) {
       try {
-        const response = await apiService.post<ApiResponse>('/translations/v1/getAllKeys', {
+        const response = await apiService.post<ApiResponse<GetAllKeysResponse>>('/translations/v1/getAllKeys', {
           last_health_check_timestamp: Math.floor(Date.now() / 1000).toString()
         }, {
           headers: {
@@ -151,7 +130,7 @@ const Dashboard: React.FC = () => {
         timestamp: currentTimestamp
       });
 
-      const response = await apiService.post<ApiResponse>('/translations/v1/getAllKeys', {
+      const response = await apiService.post<ApiResponse<GetAllKeysResponse>>('/translations/v1/getAllKeys', {
         last_health_check_timestamp: currentTimestamp
       }, {
         headers: {
@@ -162,7 +141,27 @@ const Dashboard: React.FC = () => {
 
       console.log('Response received:', response.data);
 
-      const { translations, projects, notification_count } = response.data.data;
+      const { 
+        translations, 
+        projects, 
+        notification_count,
+        force_logout,
+        under_maintenance,
+        languages: apiLanguages 
+      } = response.data.data;
+
+      // Update languages in cache if received from API
+      if (apiLanguages?.length > 0) {
+        updateLanguages(apiLanguages);
+      }
+
+      // Handle force logout if needed
+      if (force_logout) {
+        cacheInstance.clear();
+        navigate('/login', { replace: true });
+        return;
+      }
+
       setTranslations(translations);
       setProjects(projects);
       setNotificationCount(notification_count);
@@ -187,12 +186,13 @@ const Dashboard: React.FC = () => {
   };
 
   const tableData: TableRow[] = translations.map((translation) => ({
-    id: translation.key,
+    id: translation.key_id.toString(),
     key: translation.key,
+    english: translation.english,
     updatedBy: translation.last_updated_by,
     modifiedAt: new Date(translation.last_updated_at).toLocaleString(),
     role: translation.last_updated_by_role,
-    status: translation.status.toLowerCase() as 'draft' | 'published' |'archive',
+    status: translation.status.toLowerCase() as 'draft' | 'published' | 'archive',
     tag: translation.tag
   }));
 
@@ -516,6 +516,9 @@ const Dashboard: React.FC = () => {
                   Key
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  English
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Role
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -555,6 +558,11 @@ const Dashboard: React.FC = () => {
                   <td className="px-6 py-2 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
                       {row.key}
+                    </div>
+                  </td>
+                  <td className="px-6 py-2 whitespace-nowrap">
+                    <div className="text-sm text-gray-600">
+                      {row.english}
                     </div>
                   </td>
                   <td className="px-6 py-2 whitespace-nowrap">

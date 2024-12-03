@@ -3,12 +3,13 @@ import { BiPlus, BiSearch, BiX, BiChevronLeft, BiChevronDown } from 'react-icons
 import { RiMagicFill } from 'react-icons/ri';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '../../hooks/useProject';
+import { useLanguages } from '../../hooks/useLanguages';
 import TextField from '../../components/TextField';
 import AppBar from '../../components/AppBar';
 
 interface Language {
-  code: string;
-  name: string;
+  language_code: string;
+  language_name: string;
 }
 
 interface FormData {
@@ -19,24 +20,12 @@ interface FormData {
   };
 }
 
-const AVAILABLE_LANGUAGES: Language[] = [
-  { code: 'es', name: 'Spanish' },
-  { code: 'fr', name: 'French' },
-  { code: 'de', name: 'German' },
-  { code: 'it', name: 'Italian' },
-  { code: 'pt', name: 'Portuguese' },
-  { code: 'ru', name: 'Russian' },
-  { code: 'zh', name: 'Chinese' },
-  { code: 'ja', name: 'Japanese' },
-  { code: 'ko', name: 'Korean' },
-  { code: 'ar', name: 'Arabic' },
-];
-
 const SAMPLE_TAGS = ['Production', 'Development', 'Staging', 'Testing', 'Documentation'];
 
 const AddKey: React.FC = () => {
   const navigate = useNavigate();
   const { currentProject } = useProject();
+  const { languages } = useLanguages();
   const [formData, setFormData] = useState<FormData>({
     key: '',
     tag: '',
@@ -57,11 +46,11 @@ const AddKey: React.FC = () => {
   const [isTranslating, setIsTranslating] = useState(false);
 
   const filteredLanguages = useMemo(() => {
-    return AVAILABLE_LANGUAGES.filter(lang => 
-      lang.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lang.code.toLowerCase().includes(searchQuery.toLowerCase())
+    return languages.filter(lang => 
+      lang.language_name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      !selectedLanguages.includes(lang.language_code)
     );
-  }, [searchQuery]);
+  }, [searchQuery, selectedLanguages, languages]);
 
   const handleInputChange = (field: string, value: string) => {
     if (field.startsWith('translation_')) {
@@ -83,9 +72,9 @@ const AddKey: React.FC = () => {
 
   const handleLanguageSelect = (language: Language) => {
     setTempSelectedLanguages(prev => 
-      prev.includes(language.code)
-        ? prev.filter(code => code !== language.code)
-        : [...prev, language.code]
+      prev.includes(language.language_code)
+        ? prev.filter(code => code !== language.language_code)
+        : [...prev, language.language_code]
     );
   };
 
@@ -300,23 +289,18 @@ const AddKey: React.FC = () => {
 
               <div className="space-y-4">
                 {selectedLanguages.map((langCode) => (
-                  <div key={langCode} className="relative">
-                    <TextField
-                      label={`${langCode === 'en' ? 'English *' : AVAILABLE_LANGUAGES.find(l => l.code === langCode)?.name || ''}`}
-                      name={`translation_${langCode}`}
-                      value={formData.translations[langCode]}
-                      onChange={(e) => handleInputChange(`translation_${langCode}`, e.target.value)}
-                      showDelete={langCode !== 'en'}
-                      onDelete={langCode !== 'en' ? () => {
-                        const newTranslations = { ...formData.translations };
-                        delete newTranslations[langCode];
-                        setFormData(prev => ({
-                          ...prev,
-                          translations: newTranslations
-                        }));
-                        setSelectedLanguages(prev => prev.filter(code => code !== langCode));
-                      } : undefined}
-                    />
+                  <div key={langCode} className="flex items-center space-x-2 bg-gray-100 rounded-md px-3 py-1">
+                    <span className="text-sm">
+                      {`${langCode === 'en' ? 'English *' : languages.find(l => l.language_code === langCode)?.language_name || ''}`}
+                    </span>
+                    {langCode !== 'en' && (
+                      <button
+                        onClick={() => setSelectedLanguages(prev => prev.filter(code => code !== langCode))}
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        <BiX className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -354,23 +338,26 @@ const AddKey: React.FC = () => {
                   <div className="flex-1 overflow-y-auto p-6">
                     <div className="grid grid-cols-2 gap-4">
                       {filteredLanguages.map((language) => (
-                        <label
-                          key={language.code}
-                          className={`flex items-center p-3 rounded-md cursor-pointer border transition-colors duration-150 ${
-                            tempSelectedLanguages.includes(language.code)
-                              ? 'bg-blue-50 border-blue-200'
-                              : 'border-gray-200 hover:bg-gray-50'
+                        <div
+                          key={language.language_code}
+                          className={`flex items-center p-2 hover:bg-gray-50 cursor-pointer ${
+                            tempSelectedLanguages.includes(language.language_code)
+                              ? 'bg-gray-50'
+                              : ''
                           }`}
                         >
                           <input
                             type="checkbox"
-                            checked={tempSelectedLanguages.includes(language.code)}
+                            className="h-4 w-4 text-blue-600 rounded border-gray-300"
+                            checked={tempSelectedLanguages.includes(language.language_code)}
                             onChange={() => handleLanguageSelect(language)}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                           />
-                          <span className="ml-2 text-sm text-gray-900">{language.name}</span>
-                          <span className="ml-1 text-xs text-gray-500">({language.code})</span>
-                        </label>
+                          <label className="ml-3">
+                            <span className="block text-sm font-medium text-gray-700">
+                              {language.language_name}
+                            </span>
+                          </label>
+                        </div>
                       ))}
                     </div>
                   </div>
