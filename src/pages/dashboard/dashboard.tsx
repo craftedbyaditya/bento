@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import AppBar from '../../components/AppBar';
 import { cacheInstance } from '../../utils/cache';
 import { apiService } from '../../services/apiService';
+import { useProject } from '../../hooks/useProject';
 
 interface Project {
   project_id: number;
@@ -50,7 +51,7 @@ interface Filters {
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const { currentProject, updateProject } = useProject();
   const [translations, setTranslations] = useState<Translation[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [notificationCount, setNotificationCount] = useState(0);
@@ -108,7 +109,7 @@ const Dashboard: React.FC = () => {
         
         if (projects && projects.length > 0) {
           // User has projects but projectId was cleared, set first project and fetch data
-          cacheInstance.set('project_id', projects[0].project_id);
+          updateProject(projects[0]);
           await fetchDashboardData();
         } else {
           // No projects, redirect to project setup
@@ -166,8 +167,14 @@ const Dashboard: React.FC = () => {
       setProjects(projects);
       setNotificationCount(notification_count);
       
-      if (projects.length > 0 && !selectedProject) {
-        setSelectedProject(projects[0]);
+      // Find and set the selected project based on the cached project ID
+      const cachedProjectId = cacheInstance.get('project_id');
+      const projectToSelect = projects.find(p => p.project_id === cachedProjectId);
+      if (projectToSelect) {
+        updateProject(projectToSelect);
+      } else if (projects.length > 0) {
+        // Fallback to first project if cached project not found
+        updateProject(projects[0]);
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -293,7 +300,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <AppBar
-        projectName={selectedProject?.project_name || 'Select Project'}
+        projectName={currentProject?.project_name || 'Select Project'}
         isProjectSelectable={true}
         onProjectSelect={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
         notificationCount={notificationCount}
@@ -306,10 +313,8 @@ const Dashboard: React.FC = () => {
               key={project.project_id}
               className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
               onClick={() => {
-                setSelectedProject(project);
+                updateProject(project);
                 setIsProjectDropdownOpen(false);
-                // Update project_id in cache and refetch data
-                cacheInstance.set('project_id', project.project_id);
                 fetchDashboardData();
               }}
             >

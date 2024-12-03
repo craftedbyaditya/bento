@@ -14,7 +14,7 @@ function App() {
         <header className="fixed top-0 left-0 right-0 z-50">
           <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
             <button
-              // onClick={() => navigate('/login')}
+              onClick={() => navigate('/login')}
               className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 hover:opacity-80 transition-opacity"
             >
               Bento

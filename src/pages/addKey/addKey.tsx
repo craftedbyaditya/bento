@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { BiPlus, BiSearch, BiX, BiChevronLeft, BiChevronDown } from 'react-icons/bi';
 import { RiMagicFill } from 'react-icons/ri';
 import { useNavigate } from 'react-router-dom';
+import { useProject } from '../../hooks/useProject';
 import TextField from '../../components/TextField';
 import AppBar from '../../components/AppBar';
 
@@ -35,6 +36,7 @@ const SAMPLE_TAGS = ['Production', 'Development', 'Staging', 'Testing', 'Documen
 
 const AddKey: React.FC = () => {
   const navigate = useNavigate();
+  const { currentProject } = useProject();
   const [formData, setFormData] = useState<FormData>({
     key: '',
     tag: '',
@@ -149,7 +151,7 @@ const AddKey: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <AppBar 
-        projectName="Project Alpha" 
+        projectName={currentProject?.project_name || 'Select Project'} 
         isProjectSelectable={false}
       />
       <div className="w-screen px-4 py-8">
