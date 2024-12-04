@@ -45,3 +45,12 @@ export interface ApiResponse<T> {
   message: string;
   data: T;
 }
+
+export interface AddKeyResponse {
+  key: string;
+  tag: string;
+  english: string;
+  translations: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}

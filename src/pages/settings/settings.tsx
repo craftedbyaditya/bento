@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppBar from '../../components/AppBar';
 import { BiEdit, BiSave, BiX, BiChevronLeft, BiCopy, BiUser } from 'react-icons/bi';
+import { useProject } from '../../hooks/useProject';
 
 interface ProjectSettings {
   name: string;
@@ -24,6 +25,7 @@ interface ProjectSettings {
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
+  const { currentProject } = useProject();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -82,7 +84,7 @@ const Settings: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppBar projectName={settings.name} />
+      <AppBar projectName={currentProject?.project_name || 'Select Project'} />
       
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-6">

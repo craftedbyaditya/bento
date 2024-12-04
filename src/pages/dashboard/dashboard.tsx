@@ -5,39 +5,19 @@ import { useNavigate } from 'react-router-dom';
 import AppBar from '../../components/AppBar';
 import { cacheInstance } from '../../utils/cache';
 import { apiService } from '../../services/apiService';
-
-interface Project {
-  project_id: number;
-  project_name: string;
-  role_id: number;
-  role_name: string;
-}
-
-interface Translation {
-  key: string;
-  tag: string;
-  status: string;
-  last_updated_by: string;
-  last_updated_by_role: string;
-  last_updated_at: string;
-}
-
-interface ApiResponse {
-  message: string;
-  data: {
-    translations: Translation[];
-    projects: Project[];
-    notification_count: number;
-  };
-}
+import { useProject } from '../../hooks/useProject';
+import { useLanguages } from '../../hooks/useLanguages';
+import { ApiResponse, GetAllKeysResponse, Translation, Project, Language } from '../../types/api';
+import { formatLocalDateTime } from '../../utils/dateUtils';
 
 interface TableRow {
   id: string;
   key: string;
+  english: string;
   updatedBy: string;
   modifiedAt: string;
   role: string;
-  status: 'draft' | 'published' |'archive';
+  status: 'draft' | 'published' | 'archive';
   tag: string;
 }
 
@@ -48,9 +28,21 @@ interface Filters {
   updatedBy: string[];
 }
 
+interface DashboardResponse {
+  data: {
+    translations: any[];
+    projects: any[];
+    notification_count: number;
+    force_logout: boolean;
+    under_maintenance: boolean;
+    languages: string[];
+  };
+}
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const { currentProject, updateProject } = useProject();
+  const { languages, updateLanguages } = useLanguages();
   const [translations, setTranslations] = useState<Translation[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [notificationCount, setNotificationCount] = useState(0);
@@ -77,117 +69,123 @@ const Dashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    checkAuthAndFetchData();
-  }, []);
-
-  const checkAuthAndFetchData = async () => {
-    const userId = cacheInstance.get('user_id');
-    
-    // If no user ID, redirect to login
-    if (!userId) {
-      // Clear any remaining cache
-      cacheInstance.clear();
-      navigate('/login', { replace: true });
-      return;
-    }
-
-    const projectId = cacheInstance.get('project_id');
-    
-    // If no project ID, fetch projects to check if user has any
-    if (!projectId) {
+    const fetchDashboardData = async () => {
+      setIsLoading(true);
       try {
-        const response = await apiService.post<ApiResponse>('/translations/v1/getAllKeys', {
+        const userId = cacheInstance.get('user_id');  // Use consistent key
+        const projectId = cacheInstance.get('project_id');  // Use consistent key
+
+        if (!userId || !projectId) {
+          console.error('Missing required values:', { userId, projectId });
+          navigate('/login');
+          return;
+        }
+
+        const requestData = {
+          userId,
+          projectId
+        };
+
+        const response = await apiService.post<DashboardResponse>('/translations/v1/getAllKeys', {
           last_health_check_timestamp: Math.floor(Date.now() / 1000).toString()
         }, {
           headers: {
-            'x-user-id': userId
+            'x-user-id': userId,
+            'x-project-id': projectId
           }
         });
 
-        const { projects } = response.data.data;
-        
-        if (projects && projects.length > 0) {
-          // User has projects but projectId was cleared, set first project and fetch data
-          cacheInstance.set('project_id', projects[0].project_id);
-          await fetchDashboardData();
-        } else {
-          // No projects, redirect to project setup
-          navigate('/project-setup', { replace: true });
+        const { 
+          translations, 
+          projects, 
+          notification_count,
+          force_logout,
+          under_maintenance,
+          languages: apiLanguages 
+        } = response.data.data;
+
+        // Process languages from API response
+        if (Array.isArray(apiLanguages)) {
+          try {
+            const languageObjects = apiLanguages.reduce<Language[]>((acc, lang) => {
+              // Case 1: lang is already a Language object with correct shape
+              if (
+                lang !== null && 
+                typeof lang === 'object' && 
+                'language_code' in lang &&
+                'language_name' in lang &&
+                typeof (lang as any).language_code === 'string' &&
+                typeof (lang as any).language_name === 'string'
+              ) {
+                acc.push(lang as Language);
+              }
+              // Case 2: lang is a string (language code)
+              else if (typeof lang === 'string' && lang.length === 2) {
+                acc.push({
+                  language_code: lang,
+                  language_name: getLanguageName(lang)
+                });
+              }
+              return acc;
+            }, []);
+
+            // Only update if we have valid languages
+            if (languageObjects.length > 0) {
+              updateLanguages(languageObjects);
+            }
+          } catch (error) {
+            console.error('Error processing languages:', error);
+          }
         }
-      } catch (error) {
-        console.error('Error checking projects:', error);
-        if (axios.isAxiosError(error) && error.response?.status === 401) {
-          // Unauthorized, clear cache and redirect to login
+
+        // Handle force logout if needed
+        if (force_logout) {
           cacheInstance.clear();
           navigate('/login', { replace: true });
+          return;
         }
-      }
-      return;
-    }
 
-    // If both userId and projectId exist, fetch dashboard data
-    await fetchDashboardData();
-  };
-
-  const fetchDashboardData = async () => {
-    try {
-      setIsLoading(true);
-      const userId = cacheInstance.get('user_id');
-      const projectId = cacheInstance.get('project_id');
-
-      // Validate required values
-      if (!userId || !projectId) {
-        console.error('Missing required values:', { userId, projectId });
-        throw new Error('Missing user ID or project ID');
-      }
-
-      // Get current timestamp in seconds
-      const currentTimestamp = Math.floor(Date.now() / 1000).toString();
-
-      console.log('Making request with:', {
-        userId,
-        projectId,
-        timestamp: currentTimestamp
-      });
-
-      const response = await apiService.post<ApiResponse>('/translations/v1/getAllKeys', {
-        last_health_check_timestamp: currentTimestamp
-      }, {
-        headers: {
-          'x-user-id': userId,
-          'x-project-id': projectId
+        setTranslations(translations);
+        setProjects(projects);
+        setNotificationCount(notification_count);
+        
+        // Find and set the selected project based on the cached project ID
+        const cachedProjectId = cacheInstance.get('project_id');
+        const projectToSelect = projects.find(p => p.project_id === cachedProjectId);
+        if (projectToSelect) {
+          updateProject(projectToSelect);
+        } else if (projects.length > 0) {
+          // Fallback to first project if cached project not found
+          updateProject(projects[0]);
         }
-      });
-
-      console.log('Response received:', response.data);
-
-      const { translations, projects, notification_count } = response.data.data;
-      setTranslations(translations);
-      setProjects(projects);
-      setNotificationCount(notification_count);
-      
-      if (projects.length > 0 && !selectedProject) {
-        setSelectedProject(projects[0]);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        if (axios.isAxiosError(error)) {
+          console.error('Server response:', error.response?.data);
+        }
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      if (axios.isAxiosError(error)) {
-        console.error('Server response:', error.response?.data);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
-  const tableData: TableRow[] = translations.map((translation) => ({
-    id: translation.key,
-    key: translation.key,
-    updatedBy: translation.last_updated_by,
-    modifiedAt: new Date(translation.last_updated_at).toLocaleString(),
-    role: translation.last_updated_by_role,
-    status: translation.status.toLowerCase() as 'draft' | 'published' |'archive',
-    tag: translation.tag
-  }));
+    fetchDashboardData();
+  }, [navigate]);
+
+  const tableData: TableRow[] = translations.map((translation) => {
+    console.log('Raw timestamp:', translation.last_updated_at);
+    const formattedDate = formatLocalDateTime(translation.last_updated_at);
+    console.log('Formatted date:', formattedDate);
+    return {
+      id: translation.key_id.toString(),
+      key: translation.key,
+      english: translation.english,
+      updatedBy: translation.last_updated_by,
+      modifiedAt: formattedDate,
+      role: translation.last_updated_by_role,
+      status: translation.status.toLowerCase() as 'draft' | 'published' | 'archive',
+      tag: translation.tag
+    };
+  });
 
   const handleRowSelect = (rowId: string) => {
     setSelectedRows(prev =>
@@ -211,22 +209,6 @@ const Dashboard: React.FC = () => {
     setAppliedFilters(tempFilters);
 
     try {
-      // This would be replaced with actual API call
-      // const response = await fetch('/api/data', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     filters: tempFilters,
-      //     searchQuery,
-      //     projectId: selectedProject?.id
-      //   }),
-      // });
-      // const data = await response.json();
-      // setTableData(data);
-
-      // Simulating API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       console.log('Filters applied:', tempFilters);
 
@@ -290,10 +272,28 @@ const Dashboard: React.FC = () => {
     return allStatuses.filter(status => status !== currentStatus);
   };
 
+  // Helper function to get language names
+  const getLanguageName = (code: string): string => {
+    const languageNames: { [key: string]: string } = {
+      'en': 'English',
+      'es': 'Spanish',
+      'fr': 'French',
+      'de': 'German',
+      'it': 'Italian',
+      'pt': 'Portuguese',
+      'ru': 'Russian',
+      'zh': 'Chinese',
+      'ja': 'Japanese',
+      'ko': 'Korean',
+      // Add more mappings as needed
+    };
+    return languageNames[code] || code;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <AppBar
-        projectName={selectedProject?.project_name || 'Select Project'}
+        projectName={currentProject?.project_name || 'Select Project'}
         isProjectSelectable={true}
         onProjectSelect={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
         notificationCount={notificationCount}
@@ -306,11 +306,9 @@ const Dashboard: React.FC = () => {
               key={project.project_id}
               className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
               onClick={() => {
-                setSelectedProject(project);
+                updateProject(project);
                 setIsProjectDropdownOpen(false);
-                // Update project_id in cache and refetch data
-                cacheInstance.set('project_id', project.project_id);
-                fetchDashboardData();
+                // fetchDashboardData();
               }}
             >
               {project.project_name}
@@ -511,6 +509,9 @@ const Dashboard: React.FC = () => {
                   Key
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  English
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Role
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -550,6 +551,11 @@ const Dashboard: React.FC = () => {
                   <td className="px-6 py-2 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
                       {row.key}
+                    </div>
+                  </td>
+                  <td className="px-6 py-2 whitespace-nowrap">
+                    <div className="text-sm text-gray-600">
+                      {row.english}
                     </div>
                   </td>
                   <td className="px-6 py-2 whitespace-nowrap">

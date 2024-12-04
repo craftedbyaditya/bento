@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { LoginRequest, LoginResponse, RegisterRequest, RegisterResponse } from './types';
 import { cacheInstance } from '../utils/cache';
 import { HTTP_STATUS, ERROR_CODES, ERROR_MESSAGES } from '../utils/constants/httpConstants';
@@ -8,8 +8,8 @@ class ApiService {
   private api: AxiosInstance;
   private readonly CACHE_KEYS = {
     USER: 'user_data',
-    USER_ID: 'user_id',
-    PROJECT_ID: 'project_id'
+    USER_ID: 'user_id',  // Consistent key for user ID
+    PROJECT_ID: 'project_id'  // Consistent key for project ID
   };
 
   private constructor() {
@@ -20,6 +20,29 @@ class ApiService {
       },
     });
 
+    // Add request interceptor to automatically add auth headers
+    this.api.interceptors.request.use(
+      (config: InternalAxiosRequestConfig) => {
+        const userId = this.getUserId();
+        const projectId = this.getProjectId();
+
+        // Always add user ID if available
+        if (userId) {
+          config.headers['x-user-id'] = userId;
+        }
+
+        // Add project ID only if available (some endpoints might not need it)
+        if (projectId) {
+          config.headers['x-project-id'] = projectId;
+        }
+
+        return config;
+      },
+      (error) => {
+        return Promise.reject(error);
+      }
+    );
+
     // Add response interceptor for error handling
     this.api.interceptors.response.use(
       (response) => response,
@@ -27,13 +50,17 @@ class ApiService {
         if (error.response) {
           switch (error.response.status) {
             case HTTP_STATUS.UNAUTHORIZED:
-              // Handle unauthorized error (e.g., redirect to login)
+              // Clear cache and redirect to login
+              cacheInstance.clear();
+              window.location.href = '/login';
               break;
             case HTTP_STATUS.FORBIDDEN:
               // Handle forbidden error
+              console.error('Access forbidden:', error.response.data);
               break;
             default:
               // Handle other errors
+              console.error('API Error:', error.response.data);
               break;
           }
         }
@@ -59,6 +86,21 @@ class ApiService {
     delete this.api.defaults.headers.common['Authorization'];
   }
 
+  // Get cached user ID
+  public getUserId(): string | null {
+    return cacheInstance.get(this.CACHE_KEYS.USER_ID);
+  }
+
+  // Get cached project ID
+  public getProjectId(): string | null {
+    return cacheInstance.get(this.CACHE_KEYS.PROJECT_ID);
+  }
+
+  // Check if user is authenticated
+  public isAuthenticated(): boolean {
+    return !!this.getUserId();
+  }
+
   public async post<T>(
     url: string, 
     data?: any, 
@@ -77,7 +119,7 @@ class ApiService {
       // Cache the successful response
       if (response.status === HTTP_STATUS.OK) {
         cacheInstance.set(this.CACHE_KEYS.USER, response.data);
-        cacheInstance.set(this.CACHE_KEYS.USER_ID, response.data.data.id);
+        cacheInstance.set(this.CACHE_KEYS.USER_ID, response.data.data.id);  // Store user ID
         if (response.data.data.projects?.length > 0) {
           cacheInstance.set(this.CACHE_KEYS.PROJECT_ID, response.data.data.projects[0].project_id);
         }
