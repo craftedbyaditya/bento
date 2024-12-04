@@ -390,17 +390,6 @@ const AddKey: React.FC = () => {
                       <span className="absolute inset-0 z-0 bg-gradient-to-r from-purple-400 to-pink-400 opacity-0 group-hover:opacity-10 transition-opacity duration-200 rounded"></span>
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempSelectedLanguages(selectedLanguages);
-                      setShowLanguageSelector(true);
-                    }}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    <BiPlus className="h-4 w-4 mr-2" />
-                    Add Language
-                  </button>
                 </div>
               </div>
 
@@ -430,80 +419,6 @@ const AddKey: React.FC = () => {
                   ))}
               </div>
             </div>
-
-            {/* Language Selector Modal */}
-            {showLanguageSelector && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
-                  <div className="p-6 border-b border-gray-200">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-medium text-gray-900">Add Languages</h3>
-                      <button
-                        type="button"
-                        onClick={() => setShowLanguageSelector(false)}
-                        className="text-gray-400 hover:text-gray-500"
-                      >
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <BiSearch className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex-1 overflow-y-auto p-6">
-                    <div className="grid grid-cols-2 gap-4">
-                      {filteredLanguages.map((language) => (
-                        <div
-                          key={language.language_code}
-                          className={`flex items-center p-2 hover:bg-gray-50 cursor-pointer ${
-                            tempSelectedLanguages.includes(language.language_code)
-                              ? 'bg-gray-50'
-                              : ''
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 text-blue-600 rounded border-gray-300"
-                            checked={tempSelectedLanguages.includes(language.language_code)}
-                            onChange={() => handleLanguageSelect(language)}
-                          />
-                          <label className="ml-3">
-                            <span className="block text-sm font-medium text-gray-700">
-                              {getLanguageDisplayName(language.language_code)}
-                            </span>
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowLanguageSelector(false)}
-                      className="px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleApplyLanguages}
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      Apply
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Form Actions */}
             <div className="flex justify-end space-x-4 pt-8 border-t border-gray-200">
