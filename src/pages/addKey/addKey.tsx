@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { BiPlus, BiSearch, BiX, BiChevronLeft, BiChevronDown } from 'react-icons/bi';
+import React, { useState, useMemo, useEffect } from 'react';
+import { BiPlus, BiSearch, BiChevronLeft, BiChevronDown } from 'react-icons/bi';
 import { RiMagicFill } from 'react-icons/ri';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '../../hooks/useProject';
@@ -29,19 +29,33 @@ const SAMPLE_TAGS = ['Production', 'Development', 'Staging', 'Testing', 'Documen
 const AddKey: React.FC = () => {
   const navigate = useNavigate();
   const { currentProject } = useProject();
-  const { languages } = useLanguages();
+  const { languages, getCachedLanguages } = useLanguages();
+  
+  // Initialize translations with cached languages
+  const cachedLanguages = getCachedLanguages();
+  const initialTranslations: { [key: string]: string } = {
+    en: '' // Always include English
+  };
+  cachedLanguages.forEach(lang => {
+    initialTranslations[lang.language_code] = '';
+  });
+
   const [formData, setFormData] = useState<FormData>({
     key: '',
     tag: '',
     english: '',
-    translations: {
-      en: ''
-    }
+    translations: initialTranslations
   });
 
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(['en']);
-  const [tempSelectedLanguages, setTempSelectedLanguages] = useState<string[]>(['en']);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([
+    'en',
+    ...cachedLanguages.map(lang => lang.language_code)
+  ]);
+  const [tempSelectedLanguages, setTempSelectedLanguages] = useState<string[]>([
+    'en',
+    ...cachedLanguages.map(lang => lang.language_code)
+  ]);
   const [showTagsDropdown, setShowTagsDropdown] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [showNewTagInput, setShowNewTagInput] = useState(false);
@@ -51,12 +65,49 @@ const AddKey: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const getLanguageDisplayName = (langCode: string): string => {
+    const lang = languages.find(l => l.language_code === langCode);
+    if (!lang || typeof lang.language_name !== 'string') {
+      return langCode;
+    }
+    return lang.language_name;
+  };
+
   const filteredLanguages = useMemo(() => {
-    return languages.filter(lang => 
-      lang.language_name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !selectedLanguages.includes(lang.language_code)
-    );
+    if (!Array.isArray(languages)) return [];
+    
+    return languages.filter(lang => {
+      if (!lang || typeof lang.language_code !== 'string') return false;
+      
+      const displayName = getLanguageDisplayName(lang.language_code);
+      const searchLower = searchQuery.toLowerCase();
+      
+      return displayName.toLowerCase().includes(searchLower) &&
+        !selectedLanguages.includes(lang.language_code);
+    });
   }, [searchQuery, selectedLanguages, languages]);
+
+  useEffect(() => {
+    // Update selected languages when languages are loaded
+    const cachedLanguages = getCachedLanguages();
+    if (cachedLanguages.length > 0) {
+      const languageCodes = ['en', ...cachedLanguages.map(lang => lang.language_code)];
+      setSelectedLanguages(languageCodes);
+      setTempSelectedLanguages(languageCodes);
+      
+      // Update translations object with new languages
+      const newTranslations = { ...formData.translations };
+      languageCodes.forEach(code => {
+        if (!newTranslations[code]) {
+          newTranslations[code] = '';
+        }
+      });
+      setFormData(prev => ({
+        ...prev,
+        translations: newTranslations
+      }));
+    }
+  }, [languages]);
 
   const handleInputChange = (field: string, value: string) => {
     if (field === 'english') {
@@ -260,7 +311,7 @@ const AddKey: React.FC = () => {
                           <div className="relative">
                             <input
                               type="text"
-                              className="block w-full rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm sm:leading-6"
+                              className="block w-full rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm sm:leading-6"
                               placeholder="Search tags..."
                               value={newTag}
                               onChange={(e) => setNewTag(e.target.value)}
@@ -361,7 +412,6 @@ const AddKey: React.FC = () => {
                     name="english"
                     value={formData.english}
                     onChange={(e) => handleInputChange('english', e.target.value)}
-  
                   />
                 </div>
 
@@ -371,21 +421,10 @@ const AddKey: React.FC = () => {
                   .map((langCode) => (
                     <div key={langCode} className="relative">
                       <TextField
-                        label={`${languages.find(l => l.language_code === langCode)?.language_name || langCode} Translation`}
+                        label={`${getLanguageDisplayName(langCode)} Translation`}
                         name={`translation_${langCode}`}
                         value={formData.translations[langCode] || ''}
                         onChange={(e) => handleInputChange(`translation_${langCode}`, e.target.value)}
-                        placeholder={`Enter ${languages.find(l => l.language_code === langCode)?.language_name || langCode} translation`}
-                        onDelete={() => {
-                          const newTranslations = { ...formData.translations };
-                          delete newTranslations[langCode];
-                          setFormData(prev => ({
-                            ...prev,
-                            translations: newTranslations
-                          }));
-                          setSelectedLanguages(prev => prev.filter(code => code !== langCode));
-                        }}
-                        showDelete
                       />
                     </div>
                   ))}
@@ -404,7 +443,6 @@ const AddKey: React.FC = () => {
                         onClick={() => setShowLanguageSelector(false)}
                         className="text-gray-400 hover:text-gray-500"
                       >
-                        <BiX className="h-6 w-6" />
                       </button>
                     </div>
                     <div className="relative">
@@ -415,8 +453,7 @@ const AddKey: React.FC = () => {
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search languages..."
-                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                       />
                     </div>
                   </div>
@@ -440,7 +477,7 @@ const AddKey: React.FC = () => {
                           />
                           <label className="ml-3">
                             <span className="block text-sm font-medium text-gray-700">
-                              {language.language_name}
+                              {getLanguageDisplayName(language.language_code)}
                             </span>
                           </label>
                         </div>

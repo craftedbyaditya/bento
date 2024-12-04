@@ -104,14 +104,38 @@ const Dashboard: React.FC = () => {
           languages: apiLanguages 
         } = response.data.data;
 
-        // Update languages in cache if received from API
-        if (apiLanguages?.length > 0) {
-          // Transform string[] to Language[]
-          const languagesData: Language[] = apiLanguages.map(code => ({
-            language_code: code,
-            language_name: code  // You might want to improve this mapping
-          }));
-          updateLanguages(languagesData);
+        // Process languages from API response
+        if (Array.isArray(apiLanguages)) {
+          try {
+            const languageObjects = apiLanguages.reduce<Language[]>((acc, lang) => {
+              // Case 1: lang is already a Language object with correct shape
+              if (
+                lang !== null && 
+                typeof lang === 'object' && 
+                'language_code' in lang &&
+                'language_name' in lang &&
+                typeof (lang as any).language_code === 'string' &&
+                typeof (lang as any).language_name === 'string'
+              ) {
+                acc.push(lang as Language);
+              }
+              // Case 2: lang is a string (language code)
+              else if (typeof lang === 'string' && lang.length === 2) {
+                acc.push({
+                  language_code: lang,
+                  language_name: getLanguageName(lang)
+                });
+              }
+              return acc;
+            }, []);
+
+            // Only update if we have valid languages
+            if (languageObjects.length > 0) {
+              updateLanguages(languageObjects);
+            }
+          } catch (error) {
+            console.error('Error processing languages:', error);
+          }
         }
 
         // Handle force logout if needed
@@ -185,22 +209,6 @@ const Dashboard: React.FC = () => {
     setAppliedFilters(tempFilters);
 
     try {
-      // This would be replaced with actual API call
-      // const response = await fetch('/api/data', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     filters: tempFilters,
-      //     searchQuery,
-      //     projectId: selectedProject?.id
-      //   }),
-      // });
-      // const data = await response.json();
-      // setTableData(data);
-
-      // Simulating API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       console.log('Filters applied:', tempFilters);
 
@@ -262,6 +270,24 @@ const Dashboard: React.FC = () => {
   const getAvailableStatuses = (currentStatus: TableRow['status']): TableRow['status'][] => {
     const allStatuses: TableRow['status'][] = ['draft', 'published', 'archive'];
     return allStatuses.filter(status => status !== currentStatus);
+  };
+
+  // Helper function to get language names
+  const getLanguageName = (code: string): string => {
+    const languageNames: { [key: string]: string } = {
+      'en': 'English',
+      'es': 'Spanish',
+      'fr': 'French',
+      'de': 'German',
+      'it': 'Italian',
+      'pt': 'Portuguese',
+      'ru': 'Russian',
+      'zh': 'Chinese',
+      'ja': 'Japanese',
+      'ko': 'Korean',
+      // Add more mappings as needed
+    };
+    return languageNames[code] || code;
   };
 
   return (
