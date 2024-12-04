@@ -538,7 +538,17 @@ const Dashboard: React.FC = () => {
                   className={`${selectedRows.includes(row.id)
                     ? 'bg-blue-50'
                     : 'hover:bg-gray-50'
-                    } transition-colors duration-150 ease-in-out`}
+                    } transition-colors duration-150 ease-in-out cursor-pointer`}
+                  onClick={(e) => {
+                    // Prevent navigation if clicking on checkbox or action buttons
+                    if (
+                      (e.target as HTMLElement).closest('input[type="checkbox"]') ||
+                      (e.target as HTMLElement).closest('button')
+                    ) {
+                      return;
+                    }
+                    navigate(`/key-details/${row.id}`);
+                  }}
                 >
                   <td className="px-6 py-2 whitespace-nowrap">
                     <input
@@ -607,8 +617,11 @@ const Dashboard: React.FC = () => {
                   <td className="px-6 py-2 whitespace-nowrap text-right">
                     <div className="relative">
                       <button
-                        className="text-gray-600 hover:text-gray-900"
-                        onClick={() => setActiveActionMenu(activeActionMenu === row.id ? null : row.id)}
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent row click
+                          setActiveActionMenu(activeActionMenu === row.id ? null : row.id);
+                        }}
+                        className="text-gray-400 hover:text-gray-600"
                       >
                         <BiDotsHorizontalRounded className="h-5 w-5" />
                       </button>

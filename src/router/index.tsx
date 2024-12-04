@@ -8,6 +8,7 @@ import Settings from '../pages/settings/settings';
 import Members from '../pages/settings/members';
 import Profile from '../pages/profile/profile';
 import ProjectSetup from '../pages/settings/ProjectSetup';
+import KeyDetailsView from '../pages/addKey/keyDetails';
 
 export const router = createBrowserRouter([
   {
@@ -45,5 +46,9 @@ export const router = createBrowserRouter([
   {
     path: '/profile',
     element: <Profile />,
+  },
+  {
+    path: '/key-details/:id',
+    element: <KeyDetailsView />,
   },
 ]);
