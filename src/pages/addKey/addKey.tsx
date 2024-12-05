@@ -283,19 +283,20 @@ const AddKey: React.FC = () => {
                   <TextField
                     label="Key *"
                     name="key"
+                    inputProps={{ maxLength: 30 }}
                     value={formData.key}
                     onChange={(e) => handleInputChange('key', e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Tags
                   </label>
-                  <div className="relative">
+                  <div className="relative mt-1">
                     <button
                       type="button"
                       onClick={() => setShowTagsDropdown(!showTagsDropdown)}
-                      className="relative w-full bg-white border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-2 text-left cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      className="relative w-full bg-white border border-gray-300 rounded-md shadow-sm pl-4 pr-10 py-2.5 text-left cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     >
                       <span className="block truncate">
                         {formData.tag || 'Select a tag'}

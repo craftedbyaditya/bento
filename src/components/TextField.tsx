@@ -10,6 +10,7 @@ interface TextFieldProps {
   onDelete?: () => void;
   showDelete?: boolean;
   disabled?: boolean;
+  inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
 }
 
 const TextField: React.FC<TextFieldProps> = ({ 
@@ -21,7 +22,8 @@ const TextField: React.FC<TextFieldProps> = ({
   name,
   onDelete,
   showDelete = false,
-  disabled = false
+  disabled = false,
+  inputProps = {}
 }) => {
   return (
     <div className="w-full">
@@ -40,19 +42,24 @@ const TextField: React.FC<TextFieldProps> = ({
           onChange={onChange}
           placeholder={placeholder}
           disabled={disabled}
+          {...inputProps}
+          maxLength={inputProps.maxLength}
           className={`w-full px-4 py-2 
             border 
             rounded-md 
+            ${disabled ? 'bg-gray-100 text-gray-500' : 'bg-white text-gray-900'} 
+            ${disabled ? 'border-gray-300' : 'border-gray-300'} 
             focus:outline-none 
             focus:ring-2 
             focus:ring-blue-500 
             focus:border-transparent
-            pr-10
-            ${disabled 
-              ? 'bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed' 
-              : 'border-gray-300 text-gray-900'
-            }`}
+            ${inputProps.maxLength ? 'pr-16' : 'pr-4'}`}
         />
+        {inputProps.maxLength && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+            {value.length}/{inputProps.maxLength}
+          </div>
+        )}
         {showDelete && onDelete && !disabled && (
           <button
             type="button"
