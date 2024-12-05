@@ -68,108 +68,82 @@ const Dashboard: React.FC = () => {
     updatedBy: []
   });
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setIsLoading(true);
-      try {
-        const userId = cacheInstance.get('user_id');  // Use consistent key
-        const projectId = cacheInstance.get('project_id');  // Use consistent key
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
+    try {
+      const userId = cacheInstance.get('user_id');
+      const projectId = currentProject?.project_id || cacheInstance.get('project_id');
 
-        if (!userId || !projectId) {
-          console.error('Missing required values:', { userId, projectId });
-          navigate('/login');
-          return;
-        }
-
-        const requestData = {
-          userId,
-          projectId
-        };
-
-        const response = await apiService.post<DashboardResponse>('/translations/v1/getAllKeys', {
-          last_health_check_timestamp: Math.floor(Date.now() / 1000).toString()
-        }, {
-          headers: {
-            'x-user-id': userId,
-            'x-project-id': projectId
-          }
-        });
-
-        const { 
-          translations, 
-          projects, 
-          notification_count,
-          force_logout,
-          under_maintenance,
-          languages: apiLanguages 
-        } = response.data.data;
-
-        // Process languages from API response
-        if (Array.isArray(apiLanguages)) {
-          try {
-            const languageObjects = apiLanguages.reduce<Language[]>((acc, lang) => {
-              // Case 1: lang is already a Language object with correct shape
-              if (
-                lang !== null && 
-                typeof lang === 'object' && 
-                'language_code' in lang &&
-                'language_name' in lang &&
-                typeof (lang as any).language_code === 'string' &&
-                typeof (lang as any).language_name === 'string'
-              ) {
-                acc.push(lang as Language);
-              }
-              // Case 2: lang is a string (language code)
-              else if (typeof lang === 'string' && lang.length === 2) {
-                acc.push({
-                  language_code: lang,
-                  language_name: getLanguageName(lang)
-                });
-              }
-              return acc;
-            }, []);
-
-            // Only update if we have valid languages
-            if (languageObjects.length > 0) {
-              updateLanguages(languageObjects);
-            }
-          } catch (error) {
-            console.error('Error processing languages:', error);
-          }
-        }
-
-        // Handle force logout if needed
-        if (force_logout) {
-          cacheInstance.clear();
-          navigate('/login', { replace: true });
-          return;
-        }
-
-        setTranslations(translations);
-        setProjects(projects);
-        setNotificationCount(notification_count);
-        
-        // Find and set the selected project based on the cached project ID
-        const cachedProjectId = cacheInstance.get('project_id');
-        const projectToSelect = projects.find(p => p.project_id === cachedProjectId);
-        if (projectToSelect) {
-          updateProject(projectToSelect);
-        } else if (projects.length > 0) {
-          // Fallback to first project if cached project not found
-          updateProject(projects[0]);
-        }
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        if (axios.isAxiosError(error)) {
-          console.error('Server response:', error.response?.data);
-        }
-      } finally {
-        setIsLoading(false);
+      if (!userId || !projectId) {
+        console.error('Missing required values:', { userId, projectId });
+        navigate('/login');
+        return;
       }
-    };
 
+      const response = await apiService.post<DashboardResponse>('/translations/v1/getAllKeys', {
+        last_health_check_timestamp: Math.floor(Date.now() / 1000).toString()
+      }, {
+        headers: {
+          'x-user-id': userId,
+          'x-project-id': projectId.toString()
+        }
+      });
+
+      const { 
+        translations, 
+        projects, 
+        notification_count,
+        force_logout,
+        under_maintenance,
+        languages: apiLanguages 
+      } = response.data.data;
+
+      // Handle force logout if needed
+      if (force_logout) {
+        cacheInstance.clear();
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      setTranslations(translations);
+      setProjects(projects);
+      setNotificationCount(notification_count);
+      
+      // Process languages from API response
+      if (Array.isArray(apiLanguages)) {
+        try {
+          const languageObjects = apiLanguages.reduce<Language[]>((acc, lang) => {
+            if (lang !== null && typeof lang === 'object' && 'language_code' in lang && 'language_name' in lang) {
+              acc.push(lang as Language);
+            } else if (typeof lang === 'string' && lang.length === 2) {
+              acc.push({
+                language_code: lang,
+                language_name: getLanguageName(lang)
+              });
+            }
+            return acc;
+          }, []);
+
+          if (languageObjects.length > 0) {
+            updateLanguages(languageObjects);
+          }
+        } catch (error) {
+          console.error('Error processing languages:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Server response:', error.response?.data);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchDashboardData();
-  }, [navigate]);
+  }, [currentProject?.project_id]);
 
   const tableData: TableRow[] = translations.map((translation) => {
     console.log('Raw timestamp:', translation.last_updated_at);

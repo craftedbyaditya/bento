@@ -57,7 +57,7 @@ const TextField: React.FC<TextFieldProps> = ({
         />
         {inputProps.maxLength && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-            {value.length}/{inputProps.maxLength}
+            {(value || '').length}/{inputProps.maxLength}
           </div>
         )}
         {showDelete && onDelete && !disabled && (

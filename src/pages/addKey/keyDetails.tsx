@@ -23,6 +23,7 @@ interface KeyDetails {
   created_by_role: string;
   created_at: string;
   translations: Translation[];
+  project_id: number;
 }
 
 const SAMPLE_TAGS = ['Production', 'Development', 'Staging', 'Testing', 'Documentation'];
@@ -36,11 +37,21 @@ const KeyDetailsView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedDetails, setEditedDetails] = useState<Partial<KeyDetails> | null>(null);
+  const [editedDetails, setEditedDetails] = useState<Partial<KeyDetails>>({
+    key: '',
+    tag: '',
+    status: '',
+    translations: []
+  });
   const [showTagsDropdown, setShowTagsDropdown] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [availableTags, setAvailableTags] = useState(SAMPLE_TAGS);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [projectId, setProjectId] = useState<string | undefined>(undefined);
+
+  // Update these to match your actual values
+  const PROJECT_ID = '17';
+  const USER_ID = '14';
 
   useEffect(() => {
     const fetchKeyDetails = async () => {
@@ -50,16 +61,37 @@ const KeyDetailsView: React.FC = () => {
           {},
           {
             headers: {
-              'x-project-id': '3',
-              'x-user-id': '1',
+              'x-project-id': PROJECT_ID,
+              'x-user-id': USER_ID,
             },
           }
         );
+        
+        console.log('Fetch response:', response.data);
+        
+        if (!response.data.data || response.data.data.length === 0) {
+          throw new Error('No key details found');
+        }
+
         const keyData = response.data.data[0];
         setKeyDetails(keyData);
-        setEditedDetails(keyData); // Initialize editedDetails with the fetched data
-      } catch (err) {
-        setError('Failed to fetch key details');
+        setEditedDetails({
+          key: keyData.key,
+          tag: keyData.tag,
+          status: keyData.status,
+          translations: keyData.translations
+        });
+        
+        // Store the project ID from the successful fetch
+        setProjectId(keyData.project_id?.toString() || PROJECT_ID);
+      } catch (err: any) {
+        const errorMessage = err.response?.data?.message || err.message || 'Failed to fetch key details';
+        setError(errorMessage);
+        console.error('Error fetching key details:', {
+          error: err,
+          response: err.response?.data,
+          status: err.response?.status
+        });
       } finally {
         setLoading(false);
       }
@@ -119,7 +151,12 @@ const KeyDetailsView: React.FC = () => {
                       <button
                         onClick={() => {
                           setIsEditing(false);
-                          setEditedDetails(null);
+                          setEditedDetails({
+                            key: '',
+                            tag: '',
+                            status: '',
+                            translations: []
+                          });
                         }}
                         className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
                       >
@@ -128,9 +165,145 @@ const KeyDetailsView: React.FC = () => {
                       </button>
                       <button
                         onClick={async () => {
-                          // TODO: Implement save functionality
-                          setIsEditing(false);
-                          setEditedDetails(null);
+                          try {
+                            if (!keyDetails) {
+                              throw new Error('No key details available');
+                            }
+
+                            // Debug logs for current state
+                            console.log('Current key details:', {
+                              keyId: keyDetails.key_id,
+                              currentKey: keyDetails.key,
+                              editedKey: editedDetails?.key,
+                              projectId: PROJECT_ID
+                            });
+
+                            // Validate required fields
+                            if (!editedDetails?.key?.trim()) {
+                              setError('Key name is required');
+                              return;
+                            }
+
+                            if (!editedDetails?.tag?.trim()) {
+                              setError('Tag is required');
+                              return;
+                            }
+
+                            if (!editedDetails?.status) {
+                              setError('Status is required');
+                              return;
+                            }
+
+                            const updatedTranslations = (keyDetails.translations || [])
+                              .filter(t => t.translation !== null) // Remove null translations
+                              .map(t => ({
+                                language_code: t.language_code,
+                                translation_text: t.translation || '' // Convert null to empty string
+                              }));
+
+                            // Format status to match the expected case
+                            const status = (editedDetails?.status || keyDetails.status || '')
+                              .charAt(0).toUpperCase() + 
+                              (editedDetails?.status || keyDetails.status || '').slice(1).toLowerCase();
+
+                            const requestPayload = {
+                              key_id: Number(keyDetails.key_id),
+                              key: editedDetails?.key?.trim() || keyDetails.key,
+                              tag: editedDetails?.tag?.trim() || keyDetails.tag,
+                              status: status, // Using properly cased status
+                              translations: updatedTranslations,
+                              project_id: Number(PROJECT_ID) // Add project_id to payload
+                            };
+                            
+                            // Debug logs for request
+                            console.log('Update request details:', {
+                              url: 'http://localhost:3000/translations/v1/updateKey',
+                              headers: {
+                                'x-project-id': PROJECT_ID,
+                                'x-user-id': USER_ID,
+                                'Content-Type': 'application/json'
+                              },
+                              payload: requestPayload
+                            });
+
+                            // First verify the key exists
+                            const verifyResponse = await axios.post(
+                              `http://localhost:3000/translations/v1/getKeyDetails/${keyDetails.key_id}`,
+                              {},
+                              {
+                                headers: {
+                                  'x-project-id': PROJECT_ID,
+                                  'x-user-id': USER_ID,
+                                }
+                              }
+                            );
+
+                            if (!verifyResponse.data.data || verifyResponse.data.data.length === 0) {
+                              throw new Error('Key not found in the specified project');
+                            }
+
+                            const response = await axios.put(
+                              'http://localhost:3000/translations/v1/updateKey',
+                              requestPayload,
+                              {
+                                headers: {
+                                  'x-project-id': PROJECT_ID,
+                                  'x-user-id': USER_ID,
+                                  'Content-Type': 'application/json'
+                                }
+                              }
+                            );
+
+                            // Log successful response
+                            console.log('API Response:', response.data);
+
+                            if (response.data && response.data.data) {
+                              // Update the keyDetails state with the new response format
+                              const updatedKeyDetails: KeyDetails = {
+                                key_id: response.data.data.id,
+                                project_id: response.data.data.project_id,
+                                key: response.data.data.key,
+                                tag: response.data.data.tag,
+                                status: response.data.data.status,
+                                last_updated_by: response.data.data.last_updated_by.full_name,
+                                last_updated_by_role: '',
+                                last_updated_at: response.data.data.updated_at,
+                                created_by: response.data.data.created_by.full_name,
+                                created_by_role: '',
+                                created_at: response.data.data.created_at,
+                                translations: keyDetails.translations.map(t => ({
+                                  ...t,
+                                  translation: t.translation || '' // Ensure no null translations
+                                }))
+                              };
+
+                              setKeyDetails(updatedKeyDetails);
+                              setIsEditing(false);
+                              setEditedDetails({
+                                key: '',
+                                tag: '',
+                                status: '',
+                                translations: []
+                              });
+                              setError(null);
+                            } else {
+                              throw new Error('Invalid response format from server');
+                            }
+                          } catch (err: any) {
+                            // Enhanced error logging
+                            console.error('Error updating key:', {
+                              error: err,
+                              response: err.response?.data,
+                              status: err.response?.status,
+                              headers: err.response?.headers,
+                              requestConfig: err.config
+                            });
+
+                            const errorMessage = err.response?.data?.message 
+                              || err.message 
+                              || 'Failed to update key details';
+                            setError(errorMessage);
+                          }
                         }}
                         className="inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-sm font-medium rounded text-white bg-blue-600 hover:bg-blue-700 focus:outline-none"
                       >
@@ -142,7 +315,12 @@ const KeyDetailsView: React.FC = () => {
                     <button
                       onClick={() => {
                         setIsEditing(true);
-                        setEditedDetails(keyDetails);
+                        setEditedDetails({
+                          key: keyDetails.key,
+                          tag: keyDetails.tag,
+                          status: keyDetails.status,
+                          translations: keyDetails.translations
+                        });
                       }}
                       className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
                     >
@@ -178,8 +356,8 @@ const KeyDetailsView: React.FC = () => {
                           <TextField
                             label=""
                             name="key"
-                            value={editedDetails?.key || keyDetails.key}
-                            onChange={(e) => setEditedDetails({ ...editedDetails, key: e.target.value })}
+                            value={String(editedDetails?.key || keyDetails?.key || '')}
+                            onChange={(e) => setEditedDetails(prev => ({ ...prev, key: e.target.value }))}
                             inputProps={{ maxLength: 30 }}
                           />
                         ) : (
@@ -206,7 +384,7 @@ const KeyDetailsView: React.FC = () => {
                               className="relative w-full bg-white border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-2 text-left cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                             >
                               <span className="block truncate">
-                                {editedDetails ? editedDetails.tag : 'Select a tag'}
+                                {editedDetails?.tag || keyDetails?.tag || 'Select a tag'}
                               </span>
                               <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
                                 <BiChevronDown className="h-5 w-5 text-gray-400" />
@@ -386,7 +564,7 @@ const KeyDetailsView: React.FC = () => {
                                 <TextField
                                   label=""
                                   name={`translation-${translation.language_code}`}
-                                  value={editedDetails?.translations?.find(t => t.language_code === translation.language_code)?.translation || translation.translation}
+                                  value={String(editedDetails?.translations?.find(t => t.language_code === translation.language_code)?.translation || translation.translation)}
                                   onChange={(e) => {
                                     const updatedTranslations = [...(editedDetails?.translations || keyDetails.translations)];
                                     const index = updatedTranslations.findIndex(t => t.language_code === translation.language_code);
@@ -509,7 +687,7 @@ const KeyDetailsView: React.FC = () => {
                                 <TextField
                                   label=""
                                   name={`translation-${translation.language_code}`}
-                                  value={editedDetails?.translations?.find(t => t.language_code === translation.language_code)?.translation || translation.translation}
+                                  value={String(editedDetails?.translations?.find(t => t.language_code === translation.language_code)?.translation || translation.translation)}
                                   onChange={(e) => {
                                     const updatedTranslations = [...(editedDetails?.translations || keyDetails.translations)];
                                     const index = updatedTranslations.findIndex(t => t.language_code === translation.language_code);
