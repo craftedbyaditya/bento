@@ -257,7 +257,7 @@ const AddKey: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <AppBar 
-        projectName={currentProject?.project_name || 'Select Project'} 
+        projectName={currentProject?.project_name || 'Loading...'}
         isProjectSelectable={false}
       />
       <div className="w-screen px-4 py-8">
@@ -265,12 +265,11 @@ const AddKey: React.FC = () => {
           <div className="px-8 py-5 border-b border-gray-200">
             <div className="flex items-center">
               <button
-                onClick={() => navigate('/dashboard')}
-                className="mr-4 text-gray-400 hover:text-gray-600"
+                onClick={() => navigate(-1)}
+                className="text-gray-600 hover:text-gray-900 flex items-center"
               >
                 <BiChevronLeft className="h-6 w-6" />
               </button>
-              <h2 className="text-xl font-semibold text-gray-900">Add New Key</h2>
             </div>
           </div>
 

@@ -109,6 +109,25 @@ const Dashboard: React.FC = () => {
       setProjects(projects);
       setNotificationCount(notification_count);
       
+      // Handle project selection
+      if (projects.length > 0 && !currentProject) {
+        const cachedProjectId = cacheInstance.get('project_id');
+        let projectToSelect;
+        
+        if (cachedProjectId) {
+          // Try to find the cached project in the projects list
+          projectToSelect = projects.find(p => p.project_id === cachedProjectId);
+        }
+        
+        // If no cached project found or no cached ID exists, select the first project
+        if (!projectToSelect) {
+          projectToSelect = projects[0];
+          cacheInstance.set('project_id', projectToSelect.project_id);
+        }
+        
+        updateProject(projectToSelect);
+      }
+      
       // Process languages from API response
       if (Array.isArray(apiLanguages)) {
         try {
@@ -281,8 +300,8 @@ const Dashboard: React.FC = () => {
               className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
               onClick={() => {
                 updateProject(project);
+                cacheInstance.set('project_id', project.project_id);
                 setIsProjectDropdownOpen(false);
-                // fetchDashboardData();
               }}
             >
               {project.project_name}

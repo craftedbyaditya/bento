@@ -84,7 +84,10 @@ const Settings: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppBar projectName={currentProject?.project_name || 'Select Project'} />
+      <AppBar 
+        projectName={currentProject?.project_name || 'Loading...'}
+        isProjectSelectable={false}
+      />
       
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-6">
@@ -95,11 +98,11 @@ const Settings: React.FC = () => {
                 <div className="flex items-center">
                   <button
                     onClick={() => navigate('/dashboard')}
-                    className="mr-4 text-gray-400 hover:text-gray-600"
+                    className="text-gray-600 hover:text-gray-900 flex items-center"
                   >
                     <BiChevronLeft className="h-6 w-6" />
                   </button>
-                  <h2 className="text-xl font-semibold text-gray-900">Project Settings</h2>
+              
                 </div>
                 <div className="flex space-x-4">
                   <button

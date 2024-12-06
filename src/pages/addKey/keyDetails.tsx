@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import AppBar from '../../components/AppBar';
 import TextField from '../../components/TextField';
+import { useProject } from '../../hooks/useProject';
 
 interface Translation {
   language_code: string;
@@ -32,6 +33,7 @@ const STATUS_VALUES = ['draft', 'published', 'archive'];
 const KeyDetailsView: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { currentProject } = useProject();
   const [keyDetails, setKeyDetails] = useState<KeyDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -128,7 +130,10 @@ const KeyDetailsView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppBar projectName="Key Details" />
+      <AppBar 
+        projectName={currentProject?.project_name || 'Loading...'}
+        isProjectSelectable={false}
+      />
       
       <div className="px-6 py-6">
         <div className="flex gap-3">
@@ -138,13 +143,15 @@ const KeyDetailsView: React.FC = () => {
             <div className="bg-white rounded-lg shadow-sm mb-3">
               {/* Back Button and Edit Button Row */}
               <div className="p-4 flex justify-between items-center border-b border-gray-200">
-                <button
-                  onClick={() => navigate(-1)}
-                  className="text-gray-600 hover:text-gray-900 flex items-center"
-                >
-                  <BiChevronLeft className="w-6 h-6" />
-                  <span className="text-sm font-medium">Back</span>
-                </button>
+                <div className="flex items-center">
+                  <button
+                    onClick={() => navigate(-1)}
+                    className="text-gray-600 hover:text-gray-900 flex items-center"
+                  >
+                    <BiChevronLeft className="w-6 h-6" />
+                  </button>
+        
+                </div>
                 <div className="flex gap-2">
                   {isEditing ? (
                     <>
@@ -393,67 +400,45 @@ const KeyDetailsView: React.FC = () => {
 
                             {showTagsDropdown && (
                               <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-                                <div className="sticky top-0 z-10 bg-white px-2 py-1.5">
-                                  <div className="relative">
+                                {availableTags.map((tag) => (
+                                  <div
+                                    key={tag}
+                                    className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-gray-50 ${
+                                      editedDetails?.tag === tag ? 'bg-gray-50' : ''
+                                    }`}
+                                    onClick={() => {
+                                      setEditedDetails(prev => ({ ...prev, tag }));
+                                      setShowTagsDropdown(false);
+                                    }}
+                                  >
+                                    <span className="block truncate">{tag}</span>
+                                  </div>
+                                ))}
+                                <div className="relative">
+                                  <div className="flex items-center px-3 py-2 border-t border-gray-100">
                                     <input
                                       type="text"
-                                      className="block w-full rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm sm:leading-6"
-                                      placeholder="Search tags..."
                                       value={newTag}
                                       onChange={(e) => setNewTag(e.target.value)}
+                                      placeholder="Add new tag"
+                                      className="flex-1 text-sm border-0 focus:ring-0 p-0"
                                     />
-                                  </div>
-                                </div>
-
-                                <div className="pt-1">
-                                  {availableTags
-                                    .filter(tag => tag.toLowerCase().includes(newTag.toLowerCase()))
-                                    .map((tag) => (
-                                      <button
-                                        key={tag}
-                                        type="button"
-                                        className={`relative select-none w-full py-2 pl-3 pr-9 text-left hover:bg-gray-50 ${
-                                          editedDetails?.tag === tag ? 'bg-blue-50 text-blue-600' : 'text-gray-900'
-                                        }`}
-                                        onClick={() => {
-                                          setEditedDetails(prev => ({ ...prev, tag }));
-                                          setShowTagsDropdown(false);
-                                          setNewTag('');
-                                        }}
-                                      >
-                                        <span className="block truncate">{tag}</span>
-                                        {editedDetails?.tag === tag && (
-                                          <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
-                                            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                            </svg>
-                                          </span>
-                                        )}
-                                      </button>
-                                    ))}
-                                  
-                                  {newTag && !availableTags.includes(newTag) && (
                                     <button
-                                      type="button"
-                                      className="relative select-none w-full py-2 pl-3 pr-9 text-left text-blue-600 hover:bg-gray-50"
-                                      onClick={() => {
-                                        handleAddNewTag();
-                                        setShowTagsDropdown(false);
-                                      }}
+                                      onClick={handleAddNewTag}
+                                      className="ml-2 p-1 text-gray-400 hover:text-gray-500"
                                     >
-                                      <span className="flex items-center">
-                                        <BiPlus className="mr-2 h-4 w-4" />
-                                        Add "{newTag}"
-                                      </span>
+                                      <BiPlus className="h-5 w-5" />
                                     </button>
-                                  )}
+                                  </div>
                                 </div>
                               </div>
                             )}
                           </>
                         ) : (
-                          <div className="mt-1 text-sm text-gray-900">
-                            {keyDetails.tag}
+                          <div className="text-sm text-gray-900">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                              {keyDetails.tag}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -478,14 +463,14 @@ const KeyDetailsView: React.FC = () => {
                                 <BiChevronDown className="h-5 w-5 text-gray-400" />
                               </span>
                             </button>
+
                             {showStatusDropdown && (
                               <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
                                 {STATUS_VALUES.map((status) => (
-                                  <button
+                                  <div
                                     key={status}
-                                    type="button"
-                                    className={`relative select-none w-full py-2 pl-3 pr-9 text-left hover:bg-gray-50 ${
-                                      editedDetails?.status === status ? 'bg-blue-50 text-blue-600' : 'text-gray-900'
+                                    className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-gray-50 ${
+                                      editedDetails?.status === status ? 'bg-gray-50' : ''
                                     }`}
                                     onClick={() => {
                                       setEditedDetails(prev => ({ ...prev, status }));
@@ -493,26 +478,19 @@ const KeyDetailsView: React.FC = () => {
                                     }}
                                   >
                                     <span className="block truncate capitalize">{status}</span>
-                                    {editedDetails?.status === status && (
-                                      <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
-                                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                        </svg>
-                                      </span>
-                                    )}
-                                  </button>
+                                  </div>
                                 ))}
                               </div>
                             )}
                           </>
                         ) : (
-                          <div className="py-2">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
-                              ${(editedDetails?.status || keyDetails?.status) === 'published' ? 'bg-green-100 text-green-800' : ''}
-                              ${(editedDetails?.status || keyDetails?.status) === 'draft' ? 'bg-gray-100 text-gray-800' : ''}
-                              ${(editedDetails?.status || keyDetails?.status) === 'archive' ? 'bg-red-100 text-red-800' : ''}
+                          <div className="text-sm text-gray-900">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize
+                              ${keyDetails.status.toLowerCase() === 'published' ? 'bg-green-100 text-green-800' : ''}
+                              ${keyDetails.status.toLowerCase() === 'draft' ? 'bg-gray-100 text-gray-800' : ''}
+                              ${keyDetails.status.toLowerCase() === 'archive' ? 'bg-red-100 text-red-800' : ''}
                             `}>
-                              {editedDetails?.status || keyDetails?.status || 'No status'}
+                              {keyDetails.status}
                             </span>
                           </div>
                         )}
@@ -648,7 +626,6 @@ const KeyDetailsView: React.FC = () => {
                         className="text-gray-600 hover:text-gray-900 flex items-center"
                       >
                         <BiChevronLeft className="w-6 h-6" />
-                        <span className="text-sm font-medium">Back</span>
                       </button>
                       <h2 className="text-xl font-semibold">Translations</h2>
                     </div>

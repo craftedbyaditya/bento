@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useProject } from '../../hooks/useProject';
+import { BiPlus } from 'react-icons/bi';
 import AppBar from '../../components/AppBar';
+import { useProject } from '../../hooks/useProject';
 import TextField from '../../components/TextField';
 import Snackbar from '../../components/Snackbar';
-import { BiChevronLeft, BiSearch, BiTrash, BiRefresh, BiChevronDown, BiFilterAlt, BiPlus, BiCheck, BiCopy, BiDownload } from 'react-icons/bi';
+import { BiChevronLeft, BiSearch, BiTrash, BiRefresh, BiChevronDown, BiFilterAlt, BiPlus as BiPlusIcon, BiCheck, BiCopy, BiDownload } from 'react-icons/bi';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
@@ -442,7 +443,10 @@ const Members: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppBar projectName={currentProject?.project_name || 'Select Project'} />
+      <AppBar 
+        projectName={currentProject?.project_name || 'Loading...'}
+        isProjectSelectable={false}
+      />
       
       {/* Main Content */}
       <div className="px-6 py-6">
@@ -452,11 +456,10 @@ const Members: React.FC = () => {
           <div className="flex items-center space-x-4 p-4 border-b border-gray-200">
             <button
               onClick={() => navigate(-1)}
-              className="p-2 rounded-full hover:bg-gray-100"
+              className="text-gray-600 hover:text-gray-900 flex items-center"
             >
               <BiChevronLeft className="h-6 w-6" />
             </button>
-            <h1 className="text-2xl font-bold text-gray-900">Members ({filteredMembers.length})</h1>
           </div>
 
           {/* Search and Actions Bar */}
@@ -585,7 +588,7 @@ const Members: React.FC = () => {
                 onClick={() => setShowInviteModal(true)}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
-                <BiPlus className="mr-2 h-5 w-5" />
+                <BiPlusIcon className="mr-2 h-5 w-5" />
                 Add Member
               </button>
             </div>
