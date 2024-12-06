@@ -33,7 +33,7 @@ const ProjectSetup: React.FC = () => {
     try {
       // TODO: Add API call to create project
       // For now, just navigate to dashboard
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (error) {
       setError('Failed to create project. Please try again.');
     } finally {

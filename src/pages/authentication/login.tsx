@@ -75,9 +75,9 @@ const Login: React.FC = () => {
       
       // Navigate based on whether user has projects
       if (response.hasProjects) {
-        navigate('/dashboard');
+        navigate('/dashboard', { replace: true });
       } else {
-        navigate('/project-setup');
+        navigate('/project-setup', { replace: true });
       }
     } catch (error: any) {
       console.error('Login failed:', error);

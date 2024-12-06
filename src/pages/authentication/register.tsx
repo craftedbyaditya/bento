@@ -90,7 +90,7 @@ const Register: React.FC = () => {
 
       // For new registrations, always navigate to project setup
       // as they won't have any projects yet
-      navigate('/project-setup');
+      navigate('/project-setup', { replace: true });
     } catch (error: any) {
       console.error('Registration failed:', error);
       setErrors({
