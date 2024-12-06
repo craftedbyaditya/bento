@@ -109,6 +109,13 @@ class ApiService {
     return this.api.post<T>(url, data, config);
   }
 
+  public async get<T>(
+    url: string,
+    config?: any
+  ): Promise<AxiosResponse<T>> {
+    return this.api.get<T>(url, config);
+  }
+
   public async login(credentials: LoginRequest): Promise<{ data: LoginResponse; hasProjects: boolean }> {
     try {
       // Clear any existing cache before login
@@ -131,13 +138,21 @@ class ApiService {
       };
     } catch (error: any) {
       if (error.response) {
-        throw new Error(
-          ERROR_MESSAGES[error.response.status === HTTP_STATUS.UNAUTHORIZED
-            ? ERROR_CODES.INVALID_CREDENTIALS
-            : ERROR_CODES.SERVER_ERROR]
-        );
+        const status = error.response.status;
+        const errorData = error.response.data;
+        
+        // Handle different error scenarios
+        if (status === HTTP_STATUS.INTERNAL_SERVER_ERROR) {
+          throw new Error('The server is currently unavailable. Please try again later.');
+        } else if (status === HTTP_STATUS.UNAUTHORIZED) {
+          throw new Error(ERROR_MESSAGES[ERROR_CODES.INVALID_CREDENTIALS]);
+        } else if (errorData?.message) {
+          throw new Error(errorData.message);
+        } else {
+          throw new Error(ERROR_MESSAGES[ERROR_CODES.SERVER_ERROR]);
+        }
       }
-      throw new Error(ERROR_MESSAGES[ERROR_CODES.NETWORK_ERROR]);
+      throw new Error('Unable to connect to the server. Please check your internet connection.');
     }
   }
 

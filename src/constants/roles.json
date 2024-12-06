@@ -1,0 +1,29 @@
+{
+  "roles": [
+    {
+      "id": "admin",
+      "name": "Admin",
+      "description": "Full access to all features and settings"
+    },
+    {
+      "id": "developer",
+      "name": "Developer",
+      "description": "Access to development and API features"
+    },
+    {
+      "id": "editor",
+      "name": "Editor",
+      "description": "Can edit and manage content"
+    },
+    {
+      "id": "viewer",
+      "name": "Viewer",
+      "description": "Read-only access to content"
+    },
+    {
+      "id": "translator",
+      "name": "Translator",
+      "description": "Can translate content"
+    }
+  ]
+}

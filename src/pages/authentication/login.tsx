@@ -82,8 +82,14 @@ const Login: React.FC = () => {
     } catch (error: any) {
       console.error('Login failed:', error);
       setErrors({
-        password: error.message || 'Invalid email or password'
+        password: error.message || 'An unexpected error occurred. Please try again.'
       });
+      
+      // Clear password field on error for security
+      setFormData(prev => ({
+        ...prev,
+        password: ''
+      }));
     } finally {
       setIsLoading(false);
     }

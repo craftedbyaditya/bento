@@ -1,21 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BiPlus } from 'react-icons/bi';
+import { BiPlus, BiSearch, BiFilterAlt, BiDownload, BiRefresh, BiChevronLeft, BiCheck, BiChevronDown, BiTrash } from 'react-icons/bi';
 import AppBar from '../../components/AppBar';
 import { useProject } from '../../hooks/useProject';
-import TextField from '../../components/TextField';
-import Snackbar from '../../components/Snackbar';
-import { BiChevronLeft, BiSearch, BiTrash, BiRefresh, BiChevronDown, BiFilterAlt, BiPlus as BiPlusIcon, BiCheck, BiCopy, BiDownload } from 'react-icons/bi';
+import { apiService } from '../../services/apiService';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { cacheInstance } from '../../utils/cache';
+import rolesData from '../../constants/roles.json';
+import TextField from '../../components/TextField';
+import Snackbar from '../../components/Snackbar';
+
+// Define Role type based on the JSON data
+type Role = typeof rolesData.roles[number]['name'];
+
+// Get role names from JSON
+const ROLES = rolesData.roles.map(role => role.name);
 
 interface Member {
   id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'Member';
+  role: string;
   status: 'active' | 'pending';
-  joinedAt: string;
+  joinedOn: string;
 }
 
 interface Filters {
@@ -29,11 +37,24 @@ interface SnackbarState {
   type: 'success' | 'error';
 }
 
-const ROLES = ['Admin', 'Member'] as const;
+interface Collaborator {
+  name: string;
+  email: string;
+  joinedOn: string;
+  role: string;
+}
+
+interface ApiResponse<T> {
+  message: string;
+  data: T;
+}
 
 const Members: React.FC = () => {
   const navigate = useNavigate();
   const { currentProject } = useProject();
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [activeRoleDropdown, setActiveRoleDropdown] = useState<string | null>(null);
@@ -55,11 +76,68 @@ const Members: React.FC = () => {
     type: 'success'
   });
 
-  const [members] = useState<Member[]>([
-    { id: '1', name: 'Ray Clarke', email: 'ray.c@acme.com', role: 'Admin', status: 'active', joinedAt: '2023-01-15' },
-    { id: '2', name: 'Jessica Taylor', email: 'jessica.t@acme.com', role: 'Admin', status: 'active', joinedAt: '2023-02-20' },
-    { id: '3', name: 'Nathan Foster', email: 'nathan.f@acme.com', role: 'Member', status: 'pending', joinedAt: '2023-03-10' },
-  ]);
+  useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        setLoading(true);
+        const userId = cacheInstance.get('user_id');
+        const projectId = currentProject?.project_id || cacheInstance.get('project_id');
+
+        if (!userId || !projectId) {
+          throw new Error('Missing required values');
+        }
+
+        const response = await apiService.get<ApiResponse<{ collaborators: { name: string; email: string; joinedOn: string; role: string; }[] }>>(`/setup/v1/collaborators/${projectId}`, {
+          headers: {
+            'x-user-id': userId,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        console.log('Full API Response:', JSON.stringify(response, null, 2));
+        console.log('Response data:', response.data);
+
+        const apiResponse = response.data as ApiResponse<{ collaborators: { name: string; email: string; joinedOn: string; role: string; }[] }>;
+
+        if (!apiResponse) {
+          throw new Error('Failed to fetch members');
+        }
+
+        const collaborators = apiResponse.data.collaborators;
+        
+        if (collaborators && Array.isArray(collaborators)) {
+          console.log('Processing collaborators:', collaborators);
+          const formattedMembers: Member[] = collaborators.map((collaborator) => ({
+            id: collaborator.email,
+            name: collaborator.name,
+            email: collaborator.email,
+            role: collaborator.role,
+            status: 'active',
+            joinedOn: collaborator.joinedOn
+          }));
+          console.log('Formatted members:', formattedMembers);
+          setMembers(formattedMembers);
+        } else {
+          console.error('Invalid response structure. Response:', response);
+          console.error('Response.data:', response.data);
+          console.error('Response.data.data:', response.data?.data);
+          throw new Error('Invalid response structure from API');
+        }
+      } catch (err: any) {
+        console.error('Error fetching members:', err);
+        setError(err.message || 'Failed to fetch members');
+        setSnackbar({
+          isOpen: true,
+          message: 'Failed to fetch members. Please try again.',
+          type: 'error'
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMembers();
+  }, [currentProject]);
 
   const handleFilterChange = (filterType: keyof Filters, value: string) => {
     setTempFilters(prev => ({
@@ -73,7 +151,7 @@ const Members: React.FC = () => {
   const handleApplyFilters = async () => {
     setIsLoading(true);
     setAppliedFilters(tempFilters);
-    
+
     try {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -94,7 +172,7 @@ const Members: React.FC = () => {
   };
 
   const filteredMembers = members.filter(member => {
-    const matchesSearch = 
+    const matchesSearch =
       member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       member.email.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -106,14 +184,137 @@ const Members: React.FC = () => {
     return matchesSearch && matchesFilters;
   });
 
-  const handleInvite = (email: string, role: 'Admin' | 'Member') => {
-    // TODO: Implement invite functionality
-    setShowInviteModal(false);
+  const handleInvite = async (email: string, role: Role) => {
+    setIsLoading(true);
+    try {
+      const userId = cacheInstance.get('user_id');
+      const projectId = currentProject?.project_id || cacheInstance.get('project_id');
+
+      const response = await apiService.post<ApiResponse<{
+        projectId: number;
+        userId: number;
+        email: string;
+        roleId: number;
+        roleName: string;
+        status: string;
+        isNewCollaborator: boolean;
+      }>>('/setup/v1/addCollaborator', {
+        projectId,
+        email,
+        roleName: role
+      });
+
+      const apiResponse = response.data;
+
+      if (!apiResponse) {
+        throw new Error('Failed to add collaborator');
+      }
+
+      // Update local state based on whether it's a new collaborator or role update
+      if (apiResponse.data.isNewCollaborator) {
+        // Add new member to the list
+        setMembers(prevMembers => [...prevMembers, {
+          id: email,
+          name: email.split('@')[0], // Temporary name until user accepts invitation
+          email: email,
+          role: apiResponse.data.roleName,
+          status: 'pending',
+          joinedOn: new Date().toISOString()
+        }]);
+
+        setSnackbar({
+          isOpen: true,
+          message: `Invitation sent to ${email}`,
+          type: 'success'
+        });
+      } else {
+        // Update existing member's role
+        setMembers(prevMembers =>
+          prevMembers.map(m =>
+            m.email === email
+              ? { ...m, role: apiResponse.data.roleName }
+              : m
+          )
+        );
+
+        setSnackbar({
+          isOpen: true,
+          message: `Role updated for ${email}`,
+          type: 'success'
+        });
+      }
+
+      setShowInviteModal(false);
+    } catch (error: any) {
+      console.error('Error adding/updating collaborator:', error);
+      let errorMessage = 'Failed to add/update collaborator';
+      
+      // Check for specific 404 "User not found" error
+      if (error.response?.status === 404 && error.response?.data?.message === 'User not found') {
+        errorMessage = 'This user does not exist. Please check the email address.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setSnackbar({
+        isOpen: true,
+        message: errorMessage,
+        type: 'error'
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleChangeRole = (memberId: string, newRole: 'Admin' | 'Member') => {
-    // TODO: Implement role change functionality
-    // setShowChangeRoleModal(false);
+  const handleRoleChange = async (member: Member, newRole: Role) => {
+    try {
+      const userId = cacheInstance.get('user_id');
+      const projectId = currentProject?.project_id || cacheInstance.get('project_id');
+
+      const response = await apiService.post<ApiResponse<{
+        projectId: number;
+        userId: number;
+        email: string;
+        roleId: number;
+        roleName: string;
+        status: string;
+        isNewCollaborator: boolean;
+      }>>('/setup/v1/addCollaborator', {
+        projectId,
+        email: member.email,
+        roleName: newRole
+      });
+
+      const apiResponse = response.data;
+
+      if (!apiResponse) {
+        throw new Error('Failed to update role');
+      }
+
+      // Update local state
+      setMembers(prevMembers =>
+        prevMembers.map(m =>
+          m.email === member.email
+            ? { ...m, role: apiResponse.data.roleName }
+            : m
+        )
+      );
+
+      setSnackbar({
+        isOpen: true,
+        message: `Role updated successfully for ${member.name}`,
+        type: 'success'
+      });
+    } catch (error: any) {
+      console.error('Error updating role:', error);
+      setSnackbar({
+        isOpen: true,
+        message: `Failed to update role: ${error.message}`,
+        type: 'error'
+      });
+    } finally {
+      setActiveRoleDropdown(null);
+    }
   };
 
   const handleRemoveMember = (memberId: string) => {
@@ -132,7 +333,7 @@ const Members: React.FC = () => {
       Email: member.email,
       Role: member.role,
       Status: member.status,
-      'Joined Date': format(new Date(member.joinedAt), 'MMM d, yyyy')
+      'Joined Date': format(new Date(member.joinedOn), 'MMM d, yyyy')
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -156,43 +357,22 @@ const Members: React.FC = () => {
     );
   };
 
-  const InviteModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const InviteModal: React.FC<{ onClose: () => void; handleInvite: (email: string, role: Role) => Promise<void> }> = ({ onClose, handleInvite }) => {
     const [email, setEmail] = useState('');
-    const [role, setRole] = useState<'Admin' | 'Member'>('Member');
+    const [role, setRole] = useState<Role>('Member');
     const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
-    const handleInvite = async () => {
-      setIsLoading(true);
-      try {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        // Add success notification
-        // toast({
-        //   title: "Invitation sent!",
-        //   description: `An invitation has been sent to ${email}`,
-        //   status: "success",
-        //   duration: 3000,
-        // });
-        onClose();
-      } catch (error) {
-        console.error('Error sending invite:', error);
-        // toast({
-        //   title: "Error sending invitation",
-        //   description: "Please try again later",
-        //   status: "error",
-        //   duration: 3000,
-        // });
-      } finally {
-        setIsLoading(false);
-      }
+    const handleInviteClick = async () => {
+      if (!email) return;
+      await handleInvite(email, role);
     };
 
     return (
       <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg max-w-md w-full p-6">
           <h2 className="text-xl font-semibold mb-4">Invite New Member</h2>
-          
+
           <div className="space-y-4">
             <TextField
               label="Email Address"
@@ -246,11 +426,10 @@ const Members: React.FC = () => {
               Cancel
             </button>
             <button
-              onClick={handleInvite}
+              onClick={handleInviteClick}
               disabled={!email || isLoading}
-              className={`px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                (!email || isLoading) ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
+              className={`px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${(!email || isLoading) ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
             >
               {isLoading ? (
                 <>
@@ -317,9 +496,8 @@ const Members: React.FC = () => {
             <button
               onClick={handleRemove}
               disabled={isLoading}
-              className={`px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${
-                isLoading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
+              className={`px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
             >
               {isLoading ? (
                 <>
@@ -340,83 +518,38 @@ const Members: React.FC = () => {
   };
 
   const MemberRow: React.FC<{ member: Member }> = ({ member }) => {
-    const [isResending, setIsResending] = useState(false);
-
-    const handleResendInvite = async () => {
-      setIsResending(true);
-      try {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        showSnackbar(`Invitation resent to ${member.email}`, 'success');
-      } catch (error) {
-        console.error('Error resending invite:', error);
-        showSnackbar('Failed to resend invitation', 'error');
-      } finally {
-        setIsResending(false);
-      }
-    };
-
     return (
-      <div className="flex items-center justify-between py-3 hover:bg-gray-50">
-        <div className="flex-1 min-w-0 pr-6">
-          <div className="flex items-center">
-            <div>
-              <div className="text-sm font-medium text-gray-900">{member.name}</div>
-              <div className="text-sm text-gray-500 flex items-center">
-                {member.email}
-                <button
-                  onClick={() => handleCopyEmail(member.email)}
-                  className="ml-2 text-gray-400 hover:text-gray-600"
-                  title="Copy email"
-                >
-                  <BiCopy className="h-4 w-4" />
-                </button>
-              </div>
+      <div className="flex items-center py-3 px-6 hover:bg-gray-50">
+        <div className="w-1/4">
+          <div className="flex flex-col">
+            <div className="text-sm font-medium text-gray-900">{member.name}</div>
+            <div className="text-sm text-gray-500 flex items-center">
+              {member.email}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center space-x-4">
-          {member.status === 'pending' && (
-            <button
-              onClick={handleResendInvite}
-              disabled={isResending}
-              className={`p-2 rounded-full hover:bg-gray-100 ${isResending ? 'opacity-50 cursor-not-allowed' : ''}`}
-              title="Resend invitation"
-            >
-              <BiRefresh className={`h-5 w-5 text-gray-400 ${isResending ? 'animate-spin' : ''}`} />
-            </button>
-          )}
+        <div className="w-1/4 text-sm text-gray-500">
+          Joined {format(new Date(member.joinedOn), 'MMM d, yyyy')}
+        </div>
 
-          {member.status === 'pending' ? (
-            <div className="text-sm text-gray-500">
-              Invitation sent {format(new Date(member.joinedAt), 'MMM d, yyyy')}
-            </div>
-          ) : (
-            <div className="text-sm text-gray-500">
-              Joined {format(new Date(member.joinedAt), 'MMM d, yyyy')}
-            </div>
-          )}
-
-          <div className="relative">
+        <div className="flex items-center justify-end gap-4 w-1/2">
+          <div className="relative min-w-[120px]">
             <button
               onClick={() => setActiveRoleDropdown(activeRoleDropdown === member.id ? null : member.id)}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="w-full inline-flex items-center justify-between px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap"
             >
               {member.role}
               <BiChevronDown className="ml-2 h-5 w-5 text-gray-400" />
             </button>
 
             {activeRoleDropdown === member.id && (
-              <div className="absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg z-10">
+              <div className="absolute right-0 mt-1 w-full bg-white rounded-md shadow-lg z-10">
                 {ROLES.map((role) => (
                   <div
                     key={role}
                     className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
-                    onClick={() => {
-                      // Handle role change
-                      setActiveRoleDropdown(null);
-                    }}
+                    onClick={() => handleRoleChange(member, role)}
                   >
                     {role}
                     {member.role === role && <BiCheck className="h-5 w-5 text-blue-500" />}
@@ -426,16 +559,18 @@ const Members: React.FC = () => {
             )}
           </div>
 
-          <button
-            onClick={() => {
-              setSelectedMember(member);
-              setShowRemoveModal(true);
-            }}
-            className="text-red-500 hover:text-red-600 p-1 rounded-full hover:bg-red-50"
-            title="Remove member"
-          >
-            <BiTrash className="h-5 w-5" />
-          </button>
+          <div className="flex justify-end">
+            <button
+              onClick={() => {
+                setSelectedMember(member);
+                setShowRemoveModal(true);
+              }}
+              className="text-red-500 hover:text-red-600 p-1 rounded-full hover:bg-red-50"
+              title="Remove member"
+            >
+              <BiTrash className="h-5 w-5" />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -443,11 +578,11 @@ const Members: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppBar 
+      <AppBar
         projectName={currentProject?.project_name || 'Loading...'}
         isProjectSelectable={false}
       />
-      
+
       {/* Main Content */}
       <div className="px-6 py-6">
         {/* Members Table */}
@@ -552,9 +687,8 @@ const Members: React.FC = () => {
                         <button
                           onClick={handleApplyFilters}
                           disabled={isLoading}
-                          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                            isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
+                          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
                         >
                           {isLoading ? (
                             <>
@@ -588,23 +722,53 @@ const Members: React.FC = () => {
                 onClick={() => setShowInviteModal(true)}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
-                <BiPlusIcon className="mr-2 h-5 w-5" />
+                <BiPlus className="mr-2 h-5 w-5" />
                 Add Member
               </button>
             </div>
           </div>
 
           {/* Member List */}
-          <div className="px-6 py-4">
-            {filteredMembers.map(member => (
-              <MemberRow key={member.id} member={member} />
-            ))}
+          <div className="overflow-x-auto">
+            {loading ? (
+              <div className="flex justify-center items-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center p-8 text-center">
+                <p className="text-red-600 mb-4">{error}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  <BiRefresh className="w-5 h-5 mr-2" />
+                  Retry
+                </button>
+              </div>
+            ) : members.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">No members found</p>
+              </div>
+            ) : (
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredMembers.map(member => (
+                    <MemberRow key={member.id} member={member} />
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
 
       {/* Modals */}
-      {showInviteModal && <InviteModal onClose={() => setShowInviteModal(false)} />}
+      {showInviteModal && <InviteModal onClose={() => setShowInviteModal(false)} handleInvite={handleInvite} />}
       {showRemoveModal && selectedMember && (
         <RemoveModal
           member={selectedMember}
